@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      expenses: {
+        Row: {
+          banco: string
+          cartao: string
+          classificacao: string | null
+          created_at: string
+          data: string | null
+          despesa: string | null
+          fatura: string | null
+          id: string
+          justificativa: string | null
+          parcela: number
+          total_parcela: number
+          valor: number
+        }
+        Insert: {
+          banco: string
+          cartao: string
+          classificacao?: string | null
+          created_at?: string
+          data?: string | null
+          despesa?: string | null
+          fatura?: string | null
+          id?: string
+          justificativa?: string | null
+          parcela?: number
+          total_parcela?: number
+          valor?: number
+        }
+        Update: {
+          banco?: string
+          cartao?: string
+          classificacao?: string | null
+          created_at?: string
+          data?: string | null
+          despesa?: string | null
+          fatura?: string | null
+          id?: string
+          justificativa?: string | null
+          parcela?: number
+          total_parcela?: number
+          valor?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
