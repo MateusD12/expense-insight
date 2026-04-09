@@ -163,11 +163,7 @@ export default function Index() {
       try {
         const text = e.target?.result as string;
         const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-
-        if (lines.length < 2) {
-          toast.error("O arquivo parece estar vazio ou não tem cabeçalho.");
-          return;
-        }
+        if (lines.length < 2) return toast.error("O arquivo parece estar vazio.");
 
         const headers = lines[0]
           .toLowerCase()
@@ -175,7 +171,6 @@ export default function Index() {
           .replace(/"/g, "")
           .split(";")
           .map((h) => h.trim());
-
         const parsed = lines.slice(1).map((line) => {
           const values = line.split(";");
           const obj: any = {};
@@ -190,7 +185,6 @@ export default function Index() {
         setImportPreview(parsed);
         setShowImportDialog(true);
       } catch (err) {
-        console.error("Erro ao ler o arquivo:", err);
         toast.error("Erro ao ler o formato deste CSV.");
       }
     };
@@ -212,9 +206,7 @@ export default function Index() {
 
         let faturaSegura = null;
         const faturaRaw = safeString(item.fatura);
-        if (faturaRaw !== "") {
-          faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
-        }
+        if (faturaRaw !== "") faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
 
         const payload = {
           banco: safeString(item.banco) || "Desconhecido",
@@ -229,14 +221,12 @@ export default function Index() {
           fatura: faturaSegura,
           user_id: session.user.id,
         };
-
         await addExpense.mutateAsync(payload);
       }
       toast.success("Tudo importado com sucesso!");
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
-      console.error(err);
       toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
@@ -268,10 +258,8 @@ export default function Index() {
         const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
-
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-
         const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
         const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
 
@@ -298,7 +286,6 @@ export default function Index() {
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
 
-      // Volta a agrupar com Banco e Cartão juntos
       const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
 
@@ -333,9 +320,7 @@ export default function Index() {
     let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
     const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
 
-    if (installmentFilter !== "all") {
-      data = data.filter((e) => e.justificativa === installmentFilter);
-    }
+    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
 
     const latestInstallments: Record<string, any> = {};
     data.forEach((e) => {
@@ -357,7 +342,6 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
-  // --- CLIQUES INTERATIVOS NOS GRÁFICOS ---
   const handleBankClick = (data: any) => {
     const parts = data.name.split(" ••");
     const bankName = parts[0];
@@ -443,42 +427,47 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-6 py-8 shadow-lg">
+      {/* Cabeçalho Responsivo */}
+      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-4 sm:px-6 py-6 sm:py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-12 w-12 border-2 border-white/20">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-white/20">
               <AvatarImage src={session.user.user_metadata?.avatar_url} />
               <AvatarFallback className="bg-blue-900 font-bold">
                 {userName?.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <h1 className="text-xl font-black uppercase tracking-tight">Olá, {userName?.split(" ")[0]}</h1>
+            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">
+              Olá, {userName?.split(" ")[0]}
+            </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1 sm:gap-2">
             <div className="relative">
               <input
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer"
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-              <Button variant="outline" className="bg-white/10 text-white font-bold h-11">
-                <Upload size={18} className="mr-2" /> Importar
+              <Button variant="outline" className="bg-white/10 text-white font-bold h-10 px-2 sm:px-4">
+                <Upload size={18} className="sm:mr-2" />
+                <span className="hidden sm:inline">Importar</span>
               </Button>
             </div>
             <Button
-              className="bg-white text-blue-700 font-black h-11"
+              className="bg-white text-blue-700 font-black h-10 px-2 sm:px-4"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
               }}
             >
-              <Plus size={18} className="mr-2" /> Novo Gasto
+              <Plus size={18} className="sm:mr-2" />
+              <span className="hidden sm:inline">Novo Gasto</span>
             </Button>
             <Button
               variant="ghost"
               onClick={() => supabase.auth.signOut()}
-              className="text-white hover:bg-red-500/20 h-11"
+              className="text-white hover:bg-red-500/20 h-10 px-2 sm:px-4"
             >
               <LogOut size={20} />
             </Button>
@@ -487,16 +476,17 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
-          <div className="flex flex-wrap gap-3">
+        {/* Painel de Filtros Responsivo */}
+        <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
+          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
             <Input
-              className="pl-4 h-11 flex-1 min-w-[200px] bg-slate-50 border-none font-bold"
+              className="col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm"
               placeholder="Buscar despesa ou justificativa..."
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
             <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-              <SelectTrigger className="w-[150px] h-11 bg-slate-50 border-none font-bold">
+              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
                 <SelectValue placeholder="Faturas" />
               </SelectTrigger>
               <SelectContent>
@@ -509,7 +499,7 @@ export default function Index() {
               </SelectContent>
             </Select>
             <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-              <SelectTrigger className="w-[150px] h-11 bg-slate-50 border-none font-bold">
+              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
                 <SelectValue placeholder="Bancos" />
               </SelectTrigger>
               <SelectContent>
@@ -525,7 +515,7 @@ export default function Index() {
               value={filters.classificacao}
               onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
             >
-              <SelectTrigger className="w-[160px] h-11 bg-slate-50 border-none font-bold">
+              <SelectTrigger className="w-full md:w-[160px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
                 <SelectValue placeholder="Categorias" />
               </SelectTrigger>
               <SelectContent>
@@ -538,12 +528,12 @@ export default function Index() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3 items-center">
             <Select
               value={filters.justificativa}
               onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
             >
-              <SelectTrigger className="w-[200px] h-11 bg-slate-50 border-none font-bold">
+              <SelectTrigger className="col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
                 <SelectValue placeholder="Justificativas" />
               </SelectTrigger>
               <SelectContent>
@@ -555,27 +545,31 @@ export default function Index() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-xl h-11 border border-slate-100">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">De:</span>
+            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-100 overflow-hidden">
+              <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                De:
+              </span>
               <input
                 type="date"
-                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
                 value={filters.dataInicio}
                 onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
               />
             </div>
-            <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-xl h-11 border border-slate-100">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Até:</span>
+            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-100 overflow-hidden">
+              <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                Até:
+              </span>
               <input
                 type="date"
-                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
                 value={filters.dataFim}
                 onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
               />
             </div>
             <Button
               variant="ghost"
-              className="text-red-500 font-bold h-11"
+              className="col-span-2 md:col-auto text-red-500 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0"
               onClick={() =>
                 setFilters({
                   search: "",
@@ -594,15 +588,18 @@ export default function Index() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-xl">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Total Gastos</p>
-            <h2 className="text-2xl font-black">{formatCurrency(totalSpent)}</h2>
+        {/* Cards Responsivos */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-blue-600 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+              Total Gastos
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black truncate">{formatCurrency(totalSpent)}</h2>
           </div>
 
           <div
             className={cn(
-              "text-white rounded-2xl p-5 shadow-xl cursor-pointer transition-all",
+              "text-white rounded-2xl p-4 sm:p-5 shadow-xl cursor-pointer transition-all",
               budget === null
                 ? "bg-slate-400 hover:bg-slate-500"
                 : totalSpent > budget
@@ -615,44 +612,52 @@ export default function Index() {
             }}
           >
             <div className="flex justify-between items-center">
-              <p className="text-[10px] font-black uppercase opacity-80 tracking-widest">
-                {budget !== null ? `Saldo do Teto (${formatCurrency(budget)})` : "Sem Teto Definido"}
+              <p className="text-[9px] sm:text-[10px] font-black uppercase opacity-80 tracking-widest truncate mr-1">
+                {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
-              <Target size={14} />
+              <Target size={12} className="shrink-0" />
             </div>
-            <h2 className="text-2xl font-black mt-1">
-              {budget !== null ? formatCurrency(budget - totalSpent) : "Definir Limite"}
+            <h2 className="text-xl sm:text-2xl font-black mt-1 truncate">
+              {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
 
-          <div className="bg-emerald-500 text-white rounded-2xl p-5 shadow-xl">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
-            <h2 className="text-2xl font-black">{filteredAndSorted.length}</h2>
+          <div className="bg-emerald-500 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+              Transações
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black">{filteredAndSorted.length}</h2>
           </div>
 
-          <div className="bg-slate-800 text-white rounded-2xl p-5 shadow-xl">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Maior Categoria</p>
-            <h2 className="text-xl font-black truncate">{chartData.cats.length > 0 ? chartData.cats[0].name : "-"}</h2>
+          <div className="bg-slate-800 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+              Maior Categoria
+            </p>
+            <h2 className="text-sm sm:text-xl font-black truncate">
+              {chartData.cats.length > 0 ? chartData.cats[0].name : "-"}
+            </h2>
             {chartData.cats.length > 0 && (
-              <p className="text-xs text-slate-300 font-bold">{formatCurrency(chartData.cats[0].value)}</p>
+              <p className="text-[10px] sm:text-xs text-slate-300 font-bold truncate">
+                {formatCurrency(chartData.cats[0].value)}
+              </p>
             )}
           </div>
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl">
-            <TabsTrigger value="dashboard" className="px-8 font-bold rounded-lg">
+          <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl w-full sm:w-auto flex">
+            <TabsTrigger value="dashboard" className="px-4 sm:px-8 font-bold rounded-lg flex-1 sm:flex-none">
               Dashboard
             </TabsTrigger>
-            <TabsTrigger value="tabela" className="px-8 font-bold rounded-lg">
+            <TabsTrigger value="tabela" className="px-4 sm:px-8 font-bold rounded-lg flex-1 sm:flex-none">
               Tabela
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
+          <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
+            <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-4 sm:mb-6">
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Divisão por Banco</h3>
                   <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
                 </div>
@@ -688,8 +693,8 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-400 mb-4 sm:mb-6 uppercase tracking-widest">
                   Evolução Mensal
                 </h3>
                 <ResponsiveContainer width="100%" height={250}>
@@ -701,6 +706,7 @@ export default function Index() {
                       tick={{ fontSize: 10 }}
                       axisLine={false}
                       tickLine={false}
+                      width={45}
                     />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
                     <Area
@@ -715,15 +721,15 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <div className="flex justify-between items-center mb-6">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+                <div className="flex justify-between items-center mb-4 sm:mb-6">
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Classificação de Gastos
                   </h3>
                   <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(250, chartData.cats.length * 30)}>
-                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: 20 }}>
+                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
@@ -752,12 +758,12 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-400 mb-4 sm:mb-6 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
                 <ResponsiveContainer width="100%" height={Math.max(250, chartData.justs.length * 30)}>
-                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 20 }}>
+                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
@@ -773,13 +779,13 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
-                <div className="flex justify-between items-center mb-6">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6">
                   <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     Acompanhamento de Parcelas
                   </h3>
                   <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs font-bold">
+                    <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs font-bold">
                       <SelectValue placeholder="Filtrar..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -793,12 +799,12 @@ export default function Index() {
                   </Select>
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.data.length * 40)}>
-                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 20 }}>
+                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={180}
+                      width={140}
                       tick={{ fontSize: 10, fontWeight: "bold" }}
                       axisLine={false}
                       tickLine={false}
@@ -815,76 +821,82 @@ export default function Index() {
 
           <TabsContent value="tabela">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-slate-50 border-none">
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Banco</TableHead>
-                    <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Valor</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">
-                      Parcela
-                    </TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Data</TableHead>
-                    <TableHead className="font-black text-[10px] uppercase tracking-widest">Despesa</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredAndSorted.map((e) => (
-                    <TableRow key={e.id} className="hover:bg-slate-50/50 transition-colors">
-                      <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell className="text-center font-black text-xs text-slate-400">
-                        {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-500 text-xs font-bold">
-                        {format(parseISO(e.data), "dd/MM/yy")}
-                      </TableCell>
-                      <TableCell>
-                        <div className="font-bold text-slate-800 text-sm">{e.despesa}</div>
-                        <div className="text-[9px] text-slate-400 font-bold uppercase">{e.justificativa}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-500"
-                            onClick={() => {
-                              setEditing(e);
-                              setFormOpen(true);
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500"
-                            onClick={() => setDeleting(e.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </TableCell>
+              <div className="overflow-x-auto">
+                <Table className="min-w-[700px]">
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 border-none">
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Banco</TableHead>
+                      <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">
+                        Valor
+                      </TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">
+                        Parcela
+                      </TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Data</TableHead>
+                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Despesa</TableHead>
+                      <TableHead />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAndSorted.map((e) => (
+                      <TableRow key={e.id} className="hover:bg-slate-50/50 transition-colors">
+                        <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
+                        <TableCell className="text-right font-black text-blue-600">
+                          {formatCurrency(Number(e.valor))}
+                        </TableCell>
+                        <TableCell className="text-center font-black text-xs text-slate-400">
+                          {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-slate-500 text-xs font-bold">
+                          {format(parseISO(e.data), "dd/MM/yy")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-bold text-slate-800 text-sm">{e.despesa}</div>
+                          <div className="text-[9px] text-slate-400 font-bold uppercase">{e.justificativa}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-500"
+                              onClick={() => {
+                                setEditing(e);
+                                setFormOpen(true);
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500"
+                              onClick={() => setDeleting(e.id)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </TabsContent>
         </Tabs>
       </div>
 
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent aria-describedby={undefined} className="rounded-3xl border-none">
+        <DialogContent aria-describedby={undefined} className="rounded-3xl border-none w-[90%] sm:w-full">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-widest text-center">
               Ajustar Teto de Gastos
             </DialogTitle>
           </DialogHeader>
-          <p className="text-center text-slate-500 font-bold -mt-2">Deixe em zero para remover o limite.</p>
+          <p className="text-center text-slate-500 text-xs sm:text-sm font-bold -mt-2">
+            Deixe em zero para remover o limite.
+          </p>
           <div className="py-6">
             <Input
               type="number"
@@ -905,7 +917,7 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent aria-describedby={undefined} className="sm:max-w-[600px] rounded-3xl border-none">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-[600px] w-[95%] rounded-3xl border-none">
           <DialogHeader>
             <DialogTitle className="font-black uppercase text-xl">Conferir Importação</DialogTitle>
           </DialogHeader>
@@ -914,8 +926,8 @@ export default function Index() {
               <TableBody>
                 {importPreview.slice(0, 5).map((item, idx) => (
                   <TableRow key={idx}>
-                    <TableCell className="font-bold text-sm">{item.despesa}</TableCell>
-                    <TableCell className="text-right font-black text-emerald-600">
+                    <TableCell className="font-bold text-xs sm:text-sm">{item.despesa}</TableCell>
+                    <TableCell className="text-right font-black text-emerald-600 text-xs sm:text-sm">
                       {formatCurrency(Number(item.valor))}
                     </TableCell>
                   </TableRow>
@@ -968,14 +980,14 @@ export default function Index() {
       />
 
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <AlertDialogContent aria-describedby={undefined} className="rounded-3xl border-none">
+        <AlertDialogContent aria-describedby={undefined} className="rounded-3xl border-none w-[90%] sm:w-full">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-black text-xl">Excluir este registro?</AlertDialogTitle>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="font-bold rounded-xl h-11">Cancelar</AlertDialogCancel>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="font-bold rounded-xl h-11 m-0">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 font-black rounded-xl h-11"
+              className="bg-red-600 font-black rounded-xl h-11 m-0"
               onClick={() => {
                 if (deleting)
                   deleteExpense.mutate(deleting, {
