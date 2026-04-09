@@ -34,10 +34,20 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
 
   useEffect(() => {
     if (initialData) {
+      // Garante que a fatura tenha apenas 7 caracteres (YYYY-MM) pro input não bugar
+      // Se não tiver fatura, assume o mês da data de compra
+      const faturaSegura = initialData.fatura
+        ? initialData.fatura.substring(0, 7)
+        : initialData.data
+          ? initialData.data.substring(0, 7)
+          : new Date().toISOString().slice(0, 7);
+
       setFormData({
         ...initialData,
+        data: initialData.data ? initialData.data.substring(0, 10) : new Date().toISOString().split("T")[0],
         parcela: initialData.parcela || 1,
         total_parcela: initialData.total_parcela || 1,
+        fatura: faturaSegura,
       });
     } else {
       setFormData({
@@ -87,17 +97,17 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
     const [searchValue, setSearchValue] = useState("");
 
     return (
-      <div className="space-y-2 flex flex-col">
-        <Label className="text-xs font-bold text-slate-500 uppercase">{label}</Label>
+      <div className="space-y-2 flex flex-col w-full overflow-hidden">
+        <Label className="text-[10px] font-bold text-slate-500 uppercase truncate">{label}</Label>
         <Popover open={openCombo} onOpenChange={setOpenCombo}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               role="combobox"
-              className="justify-between font-normal bg-slate-50 border-slate-200"
+              className="w-full justify-between font-normal bg-slate-50 border-slate-200 overflow-hidden"
             >
-              {value || `Selecionar...`}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              <span className="truncate pr-2">{value || `Selecionar...`}</span>
+              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-full p-0">
@@ -107,13 +117,13 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                 <CommandEmpty className="p-2">
                   <Button
                     variant="ghost"
-                    className="w-full justify-start text-blue-600"
+                    className="w-full justify-start text-blue-600 truncate"
                     onClick={() => {
                       onChange(searchValue);
                       setOpenCombo(false);
                     }}
                   >
-                    <Plus className="mr-2 h-4 w-4" /> Adicionar "{searchValue}"
+                    <Plus className="mr-2 h-4 w-4 shrink-0" /> Adicionar "{searchValue}"
                   </Button>
                 </CommandEmpty>
                 <CommandGroup>
@@ -126,9 +136,12 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                       }}
                     >
                       <Check
-                        className={cn("mr-2 h-4 w-4", value === option ? "opacity-100 text-blue-600" : "opacity-0")}
+                        className={cn(
+                          "mr-2 h-4 w-4 shrink-0",
+                          value === option ? "opacity-100 text-blue-600" : "opacity-0",
+                        )}
                       />
-                      {option}
+                      <span className="truncate">{option}</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -142,16 +155,16 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto rounded-2xl border-none shadow-2xl bg-white">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto rounded-2xl border-none shadow-2xl bg-white">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">
-            {initialData ? "EDITAR GASTO" : "NOVO GASTO"}
+          <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight uppercase">
+            {initialData ? "Editar Gasto" : "Novo Gasto"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-5 py-2">
-          {/* Calculadora de Valores (Destaque) */}
-          <div className="col-span-2 bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4">
+          {/* Calculadora de Valores */}
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4 w-full">
             <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm">
               <Calculator size={16} /> Valores e Parcelas
             </div>
@@ -164,7 +177,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   min={1}
                   value={formData.parcela}
                   onChange={(e) => setFormData({ ...formData, parcela: Math.max(1, Number(e.target.value)) })}
-                  className="bg-white border-slate-200 font-bold"
+                  className="bg-white border-slate-200 font-bold w-full"
                 />
               </div>
               <div className="space-y-2">
@@ -174,26 +187,30 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   min={1}
                   value={formData.total_parcela}
                   onChange={(e) => setFormData({ ...formData, total_parcela: Math.max(1, Number(e.target.value)) })}
-                  className="bg-white border-slate-200 font-bold"
+                  className="bg-white border-slate-200 font-bold w-full"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-3 border-t border-blue-100">
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-blue-600 uppercase">Valor Mensal (Parcela)</Label>
+                <Label className="text-[10px] font-black text-blue-600 uppercase truncate">
+                  Valor Mensal (Parcela)
+                </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
                   <Input
                     type="number"
                     value={formData.valor || ""}
                     onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
-                    className="pl-9 font-black text-blue-600 text-lg border-blue-300 focus-visible:ring-blue-500 bg-white"
+                    className="pl-9 font-black text-blue-600 text-lg border-blue-300 focus-visible:ring-blue-500 bg-white w-full"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label className="text-[10px] font-black text-slate-600 uppercase">Valor Total da Compra</Label>
+                <Label className="text-[10px] font-black text-slate-600 uppercase truncate">
+                  Valor Total da Compra
+                </Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
                   <Input
@@ -202,7 +219,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                     onChange={(e) =>
                       setFormData({ ...formData, valor: Number(e.target.value) / (formData.total_parcela || 1) })
                     }
-                    className="pl-9 font-black text-slate-700 text-lg bg-white border-slate-200"
+                    className="pl-9 font-black text-slate-700 text-lg bg-white border-slate-200 w-full"
                   />
                 </div>
               </div>
@@ -220,22 +237,22 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
           />
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-500 uppercase">Data da Compra</Label>
+            <div className="space-y-2 overflow-hidden">
+              <Label className="text-[10px] font-bold text-slate-500 uppercase truncate">Data da Compra</Label>
               <Input
                 type="date"
                 value={formData.data}
                 onChange={(e) => setFormData({ ...formData, data: e.target.value })}
-                className="bg-slate-50"
+                className="bg-slate-50 w-full"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold text-slate-500 uppercase">Mês da Fatura</Label>
+            <div className="space-y-2 overflow-hidden">
+              <Label className="text-[10px] font-bold text-slate-500 uppercase truncate">Mês da Fatura</Label>
               <Input
                 type="month"
                 value={formData.fatura || ""}
                 onChange={(e) => setFormData({ ...formData, fatura: e.target.value })}
-                className="bg-slate-50"
+                className="bg-slate-50 w-full"
               />
             </div>
           </div>
@@ -272,7 +289,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         </div>
 
         <DialogFooter className="pt-4 border-t mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-bold">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-bold w-full sm:w-auto">
             Cancelar
           </Button>
           <Button
@@ -280,7 +297,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
               onSubmit(formData);
               onOpenChange(false);
             }}
-            className="bg-blue-600 font-bold px-8"
+            className="bg-blue-600 font-bold px-8 w-full sm:w-auto"
           >
             Salvar Gasto
           </Button>
