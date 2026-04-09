@@ -1,7 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
-import { SummaryCards } from "@/components/SummaryCards";
 import { RankedList } from "@/components/RankedList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -39,7 +38,6 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-// Cores baseadas na sua imagem original
 const COLORS = [
   "#7c3aed", // Roxo (Itaú ..2596)
   "#06b6d4", // Ciano (Itaú ..6466)
@@ -83,6 +81,7 @@ export default function Index() {
     banco: "all",
     cartao: "all",
     classificacao: "all",
+    justificativa: "all",
     fatura: "all",
     dataInicio: "",
     dataFim: "",
@@ -97,14 +96,12 @@ export default function Index() {
     direction: "desc",
   });
 
-  // Teto de Gastos
   const [budget, setBudget] = useState<number>(() => {
     const saved = localStorage.getItem("expense-budget");
     return saved ? Number(saved) : 4000;
   });
   const [tempBudget, setTempBudget] = useState(budget);
 
-  // Filtragem e Ordenação
   const filteredAndSorted = useMemo(() => {
     let result = allExpenses.filter((e) => {
       const matchSearch =
@@ -113,6 +110,7 @@ export default function Index() {
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
       const matchFatura = filters.fatura === "all" || e.fatura === filters.fatura;
 
       let matchDate = true;
@@ -124,7 +122,7 @@ export default function Index() {
         });
       }
 
-      return matchSearch && matchBanco && matchCartao && matchCat && matchFatura && matchDate;
+      return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
     });
 
     result.sort((a, b) => {
@@ -144,7 +142,6 @@ export default function Index() {
       ? unique("cartao")
       : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
-  // Dados para os Gráficos (Baseado nas imagens)
   const pieData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
@@ -190,6 +187,8 @@ export default function Index() {
   }, [filteredAndSorted]);
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
+  const uniqueBancos = new Set(filteredAndSorted.map((e) => e.banco)).size;
+  const uniqueCats = new Set(filteredAndSorted.map((e) => e.classificacao)).size;
   const remainingBudget = budget - totalSpent;
 
   const handleSort = (key: keyof Expense) => {
@@ -210,7 +209,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      {/* HEADER ORIGINAL (Gradient Roxo/Azul) */}
       <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-8">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div>
@@ -235,7 +233,7 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* BARRA DE FILTROS ORIGINAL */}
+        {/* BARRA DE FILTROS COM JUSTIFICATIVA */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[200px]">
             <Input
@@ -246,11 +244,11 @@ export default function Index() {
             />
           </div>
           <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
-            <SelectTrigger className="w-[160px] h-10">
-              <SelectValue placeholder="Todos os bancos" />
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Bancos" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os bancos</SelectItem>
+              <SelectItem value="all">Todos bancos</SelectItem>
               {unique("banco").map((b) => (
                 <SelectItem key={b} value={b}>
                   {b}
@@ -259,11 +257,11 @@ export default function Index() {
             </SelectContent>
           </Select>
           <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
-            <SelectTrigger className="w-[160px] h-10">
-              <SelectValue placeholder="Todos os cartões" />
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Cartões" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os cartões</SelectItem>
+              <SelectItem value="all">Todos cartões</SelectItem>
               {cartoes.map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
@@ -272,11 +270,11 @@ export default function Index() {
             </SelectContent>
           </Select>
           <Select value={filters.classificacao} onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}>
-            <SelectTrigger className="w-[160px] h-10">
-              <SelectValue placeholder="Todas as categorias" />
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Categorias" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as categorias</SelectItem>
+              <SelectItem value="all">Todas categorias</SelectItem>
               {unique("classificacao").map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
@@ -284,12 +282,25 @@ export default function Index() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-            <SelectTrigger className="w-[160px] h-10">
-              <SelectValue placeholder="Todas as faturas" />
+          <Select value={filters.justificativa} onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}>
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Justificativa" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as faturas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+              {unique("justificativa").map((j) => (
+                <SelectItem key={j} value={j}>
+                  {j}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Faturas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas faturas</SelectItem>
               {unique("fatura").map((f) => (
                 <SelectItem key={f} value={f}>
                   {formatFatura(f)}
@@ -299,33 +310,52 @@ export default function Index() {
           </Select>
         </div>
 
-        {/* INDICADORES ORIGINAIS (Renderizados via SummaryCards + Card do Teto) */}
-        <div className="grid gap-4 md:grid-cols-5">
-          {/* O Seu SummaryCards deve renderizar os 4 cards da imagem 2 (Roxo, Azul, Verde, Laranja). 
-              Como adicionei o teto, coloquei ele no final. Se preferir que ele assuma o lugar do Total, avise. */}
-          <div className="md:col-span-4">
-            <SummaryCards expenses={filteredAndSorted} />
+        {/* INDICADORES EM GRID (Substituindo o SummaryCards) */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {/* Card 1: Total Gasto */}
+          <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-medium opacity-90">Total em Gastos</p>
+            <h2 className="text-2xl font-bold mt-1">{formatCurrency(totalSpent)}</h2>
           </div>
 
-          {/* Card do Teto Adicional (Mantendo seu layout, adicionei este no final da linha) */}
+          {/* Card 2: Saldo do Teto (Disfarçado de botão) */}
           <div
-            className="rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-center cursor-pointer hover:opacity-90 bg-white"
+            className={cn(
+              "text-white rounded-xl p-5 shadow-sm flex flex-col justify-center cursor-pointer hover:brightness-110 transition-all",
+              remainingBudget < 0 ? "bg-red-500" : "bg-[#8b5cf6]", // Roxo para combinar com o layout, vermelho se estourar
+            )}
             onClick={() => {
               setTempBudget(budget);
               setBudgetDialogOpen(true);
             }}
+            title="Clique para ajustar o teto de gastos"
           >
-            <p className="text-sm font-medium text-slate-500 flex items-center justify-between">
-              Saldo do Teto <Target size={16} />
-            </p>
-            <h2 className={cn("text-2xl font-bold mt-2", remainingBudget < 0 ? "text-red-500" : "text-emerald-500")}>
-              {formatCurrency(remainingBudget)}
-            </h2>
-            <p className="text-xs text-slate-400 mt-1">Limite: {formatCurrency(budget)}</p>
+            <div className="flex justify-between items-center opacity-90">
+              <p className="text-sm font-medium">Saldo do Teto</p>
+              <Target size={16} />
+            </div>
+            <h2 className="text-2xl font-bold mt-1">{formatCurrency(remainingBudget)}</h2>
+          </div>
+
+          {/* Card 3: Transações */}
+          <div className="bg-[#10b981] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-medium opacity-90">Transações</p>
+            <h2 className="text-2xl font-bold mt-1">{filteredAndSorted.length}</h2>
+          </div>
+
+          {/* Card 4: Bancos */}
+          <div className="bg-[#14b8a6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-medium opacity-90">Bancos</p>
+            <h2 className="text-2xl font-bold mt-1">{uniqueBancos}</h2>
+          </div>
+
+          {/* Card 5: Categorias */}
+          <div className="bg-[#f97316] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+            <p className="text-sm font-medium opacity-90">Categorias</p>
+            <h2 className="text-2xl font-bold mt-1">{uniqueCats}</h2>
           </div>
         </div>
 
-        {/* TABS ORIGINAIS */}
         <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="bg-transparent space-x-2 p-0 mb-6">
             <TabsTrigger
@@ -343,7 +373,6 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
-            {/* PRIMEIRA LINHA DE GRÁFICOS */}
             <div className="grid gap-6 md:grid-cols-2">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Gastos por Banco / Cartão</h3>
@@ -394,7 +423,6 @@ export default function Index() {
               </div>
             </div>
 
-            {/* SEGUNDA LINHA DE GRÁFICOS (RANKED LISTS) */}
             <div className="grid gap-6 md:grid-cols-2">
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <RankedList data={topClassificacao} title="Top 10 por Categoria" />
