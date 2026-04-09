@@ -63,11 +63,9 @@ export default function Index() {
   const [session, setSession] = useState<any>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  // Teto agora pode ser nulo
   const [budget, setBudget] = useState<number | null>(null);
   const [tempBudget, setTempBudget] = useState<number>(0);
 
-  // Estados de Auth
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -88,7 +86,6 @@ export default function Index() {
       setSession(session);
       if (session) fetchProfile(session.user.id);
       setIsCheckingAuth(false);
-      // Limpa tokens da URL após login
       if (window.location.hash || window.location.search.includes("access_token")) {
         window.history.replaceState(null, "", window.location.pathname);
       }
@@ -174,22 +171,46 @@ export default function Index() {
     reader.readAsText(file);
   };
 
+  // MOTOR DE IMPORTAÇÃO BLINDADO
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
-        await addExpense.mutateAsync({
-          ...item,
+        // Conversão segura de data (DD/MM/YYYY para YYYY-MM-DD)
+        let dataSegura = item.data;
+        if (dataSegura && dataSegura.includes("/")) {
+          const p = dataSegura.split("/");
+          if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
+        }
+
+        // Tratamento para fatura vazia não bugar o banco
+        let faturaSegura = null;
+        if (item.fatura && item.fatura.trim() !== "") {
+          faturaSegura = item.fatura.length === 7 ? `${item.fatura}-01` : item.fatura;
+        }
+
+        const payload = {
+          banco: item.banco || "Desconhecido",
+          cartao: item.cartao || "",
           valor: Number(item.valor) || 0,
+          data: dataSegura || new Date().toISOString().split("T")[0],
+          despesa: item.despesa || "Importado",
+          classificacao: item.classificacao || "Outros",
+          justificativa: item.justificativa || "",
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
+          fatura: faturaSegura,
           user_id: session.user.id,
-        });
+        };
+
+        await addExpense.mutateAsync(payload);
       }
-      toast.success("Importado com sucesso!");
+      toast.success("Tudo importado com sucesso!");
       setShowImportDialog(false);
+      setImportPreview([]);
     } catch (err) {
-      toast.error("Erro na importação.");
+      console.error(err);
+      toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
 
@@ -577,6 +598,9 @@ export default function Index() {
         <DialogContent className="sm:max-w-[600px] rounded-3xl border-none">
           <DialogHeader>
             <DialogTitle className="font-black uppercase text-xl">Conferir Importação</DialogTitle>
+            <DialogDescription className="hidden">
+              Confirme os dados extraídos do arquivo para inserir no sistema.
+            </DialogDescription>
           </DialogHeader>
           <div className="max-h-[300px] overflow-auto border rounded-xl">
             <Table>
@@ -640,6 +664,9 @@ export default function Index() {
         <AlertDialogContent className="rounded-3xl border-none">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-black text-xl">Excluir este registro?</AlertDialogTitle>
+            <AlertDialogDescription className="hidden">
+              Tem certeza que deseja apagar essa despesa?
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="font-bold rounded-xl h-11">Cancelar</AlertDialogCancel>
