@@ -69,20 +69,6 @@ const BADGE_COLORS: Record<string, string> = {
   "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-const HEX_COLORS: Record<string, string> = {
-  Estudos: "#1e40af",
-  Saúde: "#991b1b",
-  Lazer: "#6b21a8",
-  Alimentação: "#9a3412",
-  Compras: "#9d174d",
-  Transporte: "#166534",
-  Assinatura: "#3730a3",
-  Presente: "#854d0e",
-  Casa: "#065f46",
-  Carro: "#155e75",
-  "Vida Pessoal": "#9f1239",
-};
-
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -434,8 +420,8 @@ export default function Index() {
     );
   };
 
-  // Corte padronizado em 12 caracteres para garantir que não sobreponha no mobile
-  const truncateText = (text: string, limit: number = 12) => {
+  // Ajustado o limite de caracteres para ficar bem visualmente sem espremer a barra
+  const truncateText = (text: string, limit: number = 14) => {
     if (!text) return "";
     return text.length > limit ? text.substring(0, limit) + "..." : text;
   };
@@ -765,16 +751,16 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100 overflow-x-auto">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
@@ -898,7 +884,7 @@ export default function Index() {
                   </span>
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(260, chartData.cats.length * 35)}>
-                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0, right: 20 }}>
+                  <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 20, left: 10, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
@@ -944,16 +930,20 @@ export default function Index() {
                   Top 10 Justificativas
                 </h3>
                 <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 35)}>
-                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0, right: 20 }}>
+                  <BarChart
+                    data={chartData.justs}
+                    layout="vertical"
+                    margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+                  >
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={95}
+                      width={110}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 12)}
+                      tickFormatter={(val) => truncateText(val, 15)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -999,16 +989,20 @@ export default function Index() {
                   </Select>
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(260, installmentsData.data.length * 45)}>
-                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 0, right: 20 }}>
+                  <BarChart
+                    data={installmentsData.data}
+                    layout="vertical"
+                    margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+                  >
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={95}
+                      width={120}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 12)}
+                      tickFormatter={(val) => truncateText(val, 16)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
