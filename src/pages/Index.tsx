@@ -91,7 +91,7 @@ export default function Index() {
   const [budget, setBudget] = useState<number | null>(null);
   const [tempBudget, setTempBudget] = useState<number>(0);
 
-  const { data: allExpenses = [], addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
 
   const [filters, setFilters] = useState({
     search: "",
@@ -138,82 +138,111 @@ export default function Index() {
   // --- LÓGICA DE PROJEÇÃO DE PARCELAS ---
   const processedExpenses = useMemo(() => {
     const today = new Date();
-    const currentMonth = startOfMonth(today);
     let list: any[] = [];
 
     allExpenses.forEach((exp) => {
       const isParcelado = exp.total_parcela && exp.total_parcela > 1;
+      list.push({ ...exp, isProjecao: false });
 
-      if (!isParcelado) {
-        list.push({ ...exp, isProjecao: false });
-      } else {
-        // Se for parcelado, geramos as parcelas restantes para a visão futura
+      if (isParcelado && viewMode === "future") {
         const dataOriginal = new Date(exp.data);
         const total = exp.total_parcela || 1;
         const parcelaAtual = exp.parcela || 1;
 
-        // Adiciona a parcela real que já existe no banco
-        list.push({ ...exp, isProjecao: false });
-
-        // Gera as parcelas "virtuais" seguintes para visualização
-        if (viewMode === "future") {
-          for (let i = 1; i <= total - parcelaAtual; i++) {
-            list.push({
-              ...exp,
-              id: `${exp.id}-virtual-${i}`,
-              parcela: parcelaAtual + i,
-              data: format(addMonths(dataOriginal, i), "yyyy-MM-dd"),
-              fatura: exp.fatura ? format(addMonths(new Date(exp.fatura), i), "yyyy-MM-dd") : null,
-              isProjecao: true,
-            });
-          }
+        for (let i = 1; i <= total - parcelaAtual; i++) {
+          list.push({
+            ...exp,
+            id: `${exp.id}-virtual-${i}`,
+            parcela: parcelaAtual + i,
+            data: format(addMonths(dataOriginal, i), "yyyy-MM-dd"),
+            fatura: exp.fatura ? format(addMonths(new Date(exp.fatura), i), "yyyy-MM-dd") : null,
+            isProjecao: true,
+          });
         }
       }
     });
 
-    // Filtra baseado no modo (Fatura Atual vs Futuro)
     if (viewMode === "current") {
       const monthStr = format(today, "yyyy-MM");
       return list.filter((e) => !e.isProjecao && (e.fatura?.startsWith(monthStr) || e.data.startsWith(monthStr)));
     }
-
     return list;
   }, [allExpenses, viewMode]);
 
   const filteredAndSorted = useMemo(() => {
     let result = processedExpenses.filter((e) => {
-      const matchSearch = e.despesa?.toLowerCase().includes(filters.search.toLowerCase());
+      const matchSearch =
+        e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+      const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
       const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
-      return matchSearch && matchBanco && matchFatura;
+      return matchSearch && matchBanco && matchCat && matchFatura;
     });
 
     result.sort((a: any, b: any) => {
-      const aVal = a[sortConfig.key];
-      const bVal = b[sortConfig.key];
-      if (sortConfig.key === "valor") return sortConfig.direction === "asc" ? a.valor - b.valor : b.valor - a.valor;
+      if (sortConfig.key === "valor")
+        return sortConfig.direction === "asc" ? Number(a.valor) - Number(b.valor) : Number(b.valor) - Number(a.valor);
+      if (sortConfig.key === "data")
+        return sortConfig.direction === "asc"
+          ? new Date(a.data).getTime() - new Date(b.data).getTime()
+          : new Date(b.data).getTime() - new Date(a.data).getTime();
       return sortConfig.direction === "asc"
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
+        ? String(a[sortConfig.key]).localeCompare(String(b[sortConfig.key]))
+        : String(b[sortConfig.key]).localeCompare(String(a[sortConfig.key]));
     });
 
     return result;
   }, [processedExpenses, filters, sortConfig]);
 
+  const chartData = useMemo(() => {
+    const banks: Record<string, number> = {};
+    const temporal: Record<string, number> = {};
+    const cats: Record<string, number> = {};
+    const justs: Record<string, number> = {};
+
+    filteredAndSorted.forEach((e) => {
+      const val = Number(e.valor);
+      const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
+      banks[bankKey] = (banks[bankKey] || 0) + val;
+      cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
+      justs[e.justificativa || "Sem Justificativa"] = (justs[e.justificativa || "Sem Justificativa"] || 0) + val;
+      if (e.fatura) {
+        const f = e.fatura.slice(0, 7);
+        temporal[f] = (temporal[f] || 0) + val;
+      }
+    });
+
+    return {
+      banks: Object.entries(banks).map(([name, value]) => ({ name, value })),
+      cats: Object.entries(cats)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value]) => ({ name, value })),
+      justs: Object.entries(justs)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([name, value]) => ({ name, value })),
+      temporal: Object.entries(temporal)
+        .sort()
+        .map(([f, valor]) => ({
+          name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
+          valor,
+        })),
+    };
+  }, [filteredAndSorted]);
+
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
   const handleAntecipar = async (expense: Expense) => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
-    // Salvamos a data original na justificativa caso queira voltar atrás
     const novaJustificativa = `[ANTECIPADO original:${expense.data}] ${expense.justificativa || ""}`;
-
     await updateExpense.mutateAsync({
       id: expense.id,
       data: todayStr,
       fatura: todayStr,
       justificativa: novaJustificativa,
     });
-    toast.success("Parcela antecipada para esta fatura!");
+    toast.success("Parcela antecipada!");
   };
 
   const handleEstornarAntecipacao = async (expense: Expense) => {
@@ -221,33 +250,32 @@ export default function Index() {
     if (match) {
       const dataOriginal = match[1];
       const limpaJustificativa = expense.justificativa?.replace(/\[ANTECIPADO original:.*?\] /, "");
-
       await updateExpense.mutateAsync({
         id: expense.id,
         data: dataOriginal,
         fatura: dataOriginal,
         justificativa: limpaJustificativa,
       });
-      toast.info("Parcela retornada ao cronograma original.");
+      toast.info("Retornado ao cronograma original.");
     }
   };
 
   if (isCheckingAuth)
     return (
       <div className="h-screen flex items-center justify-center font-bold text-slate-400 italic">
-        Carregando Finanças...
+        Validando acesso...
       </div>
     );
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white px-4 py-6 shadow-lg">
+      <div className="bg-gradient-to-r from-blue-700 to-indigo-900 text-white px-4 py-6 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Avatar className="h-10 w-10 border-2 border-white/20">
+            <Avatar className="h-12 w-12 border-2 border-white/20">
               <AvatarFallback className="bg-blue-900 font-bold">M</AvatarFallback>
             </Avatar>
-            <h1 className="text-lg font-black uppercase tracking-tight">Finanças Mateus</h1>
+            <h1 className="text-xl font-black uppercase tracking-tighter">Finanças Mateus</h1>
           </div>
           <div className="flex gap-2">
             <Button
@@ -259,7 +287,7 @@ export default function Index() {
               {viewMode === "current" ? "Ver Futuros" : "Fatura Atual"}
             </Button>
             <Button
-              className="bg-white text-blue-700 hover:bg-blue-50 font-black h-10"
+              className="bg-white text-blue-700 font-black h-10"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -267,164 +295,274 @@ export default function Index() {
             >
               <Plus size={18} />
             </Button>
-            <Button variant="ghost" onClick={() => supabase.auth.signOut()} className="text-white h-10">
+            <Button variant="ghost" onClick={() => supabase.auth.signOut()} className="text-white">
               <LogOut size={20} />
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-4">
+      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
         {/* CARDS DE RESUMO */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-md">
-            <p className="text-[10px] font-black opacity-70 uppercase mb-1">
-              {viewMode === "current" ? "Total Fatura Atual" : "Total Projetado"}
+          <div className="bg-blue-600 text-white rounded-3xl p-5 shadow-lg">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              {viewMode === "current" ? "Total Fatura" : "Total Projetado"}
             </p>
             <h2 className="text-2xl font-black">{formatCurrency(totalSpent)}</h2>
           </div>
-          <div className="bg-slate-800 text-white rounded-2xl p-5 shadow-md">
-            <p className="text-[10px] font-black opacity-70 uppercase mb-1">Itens na Lista</p>
+          <div className="bg-slate-800 text-white rounded-3xl p-5 shadow-lg">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Itens</p>
             <h2 className="text-2xl font-black">{filteredAndSorted.length}</h2>
           </div>
-          {budget && (
-            <div
-              className={cn(
-                "rounded-2xl p-5 shadow-md text-white",
-                totalSpent > budget ? "bg-red-500" : "bg-emerald-500",
-              )}
-            >
-              <p className="text-[10px] font-black opacity-70 uppercase mb-1">Saldo do Teto</p>
-              <h2 className="text-2xl font-black">{formatCurrency(budget - totalSpent)}</h2>
-            </div>
-          )}
-        </div>
-
-        {/* TABELA DE GASTOS */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-          <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-            <h3 className="font-black uppercase text-xs text-slate-500 tracking-widest">
-              {viewMode === "current" ? "Lançamentos do Mês" : "Cronograma de Faturas Futuras"}
-            </h3>
-            <div className="flex gap-2">
-              <Input
-                className="h-8 text-xs w-40 sm:w-64 bg-white"
-                placeholder="Filtrar despesa..."
-                value={filters.search}
-                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="font-black text-[10px] uppercase">Data/Fatura</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase">Descrição</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-center">Parcela</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-right">Valor</TableHead>
-                  <TableHead className="font-black text-[10px] uppercase text-center">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAndSorted.map((e) => {
-                  const isAntecipado = e.justificativa?.includes("[ANTECIPADO");
-                  return (
-                    <TableRow
-                      key={e.id}
-                      className={cn(
-                        "group transition-colors",
-                        e.isProjecao ? "bg-amber-50/30 italic text-slate-500" : "hover:bg-blue-50/50",
-                      )}
-                    >
-                      <TableCell className="text-xs font-bold">
-                        {format(parseISO(e.data), "dd/MM/yy")}
-                        {e.fatura && (
-                          <span className="block text-[9px] text-blue-500 font-black uppercase">
-                            Fatura: {formatFatura(e.fatura)}
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-sm text-slate-800">{e.despesa}</span>
-                          {isAntecipado && (
-                            <Zap size={12} className="text-amber-500 fill-amber-500" title="Parcela Antecipada" />
-                          )}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block">{e.justificativa || "-"}</span>
-                      </TableCell>
-                      <TableCell className="text-center font-black text-xs text-slate-400">
-                        {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center gap-1">
-                          {/* Botão de Antecipar (Só aparece para parcelas futuras reais) */}
-                          {viewMode === "future" && !e.isProjecao && !isAntecipado && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-amber-600 hover:bg-amber-100"
-                              onClick={() => handleAntecipar(e)}
-                            >
-                              <Zap size={14} />
-                            </Button>
-                          )}
-                          {/* Botão de Estornar Antecipação */}
-                          {isAntecipado && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-600 hover:bg-blue-100"
-                              onClick={() => handleEstornarAntecipacao(e)}
-                            >
-                              <RotateCcw size={14} />
-                            </Button>
-                          )}
-                          {!e.isProjecao && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-slate-400"
-                                onClick={() => {
-                                  setEditing(e);
-                                  setFormOpen(true);
-                                }}
-                              >
-                                <Pencil size={14} />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-red-400"
-                                onClick={() => setDeleting(e.id)}
-                              >
-                                <Trash2 size={14} />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            {filteredAndSorted.length === 0 && (
-              <div className="p-10 text-center text-slate-400 font-bold italic">
-                Nenhum gasto encontrado para este período.
-              </div>
+          <div
+            className={cn(
+              "text-white rounded-3xl p-5 shadow-lg cursor-pointer",
+              budget === null ? "bg-slate-400" : totalSpent > budget ? "bg-red-500" : "bg-emerald-500",
             )}
+            onClick={() => {
+              setTempBudget(budget || 0);
+              setBudgetDialogOpen(true);
+            }}
+          >
+            <p className="text-[10px] font-black uppercase opacity-90 tracking-widest mb-1">Saldo do Teto</p>
+            <h2 className="text-2xl font-black">{budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}</h2>
           </div>
         </div>
+
+        <Tabs defaultValue="dashboard">
+          <TabsList className="bg-white p-1 mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
+            <TabsTrigger
+              value="dashboard"
+              className="px-8 py-2 font-black rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+            >
+              Dashboard
+            </TabsTrigger>
+            <TabsTrigger
+              value="tabela"
+              className="px-8 py-2 font-black rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+            >
+              Tabela
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="dashboard" className="flex flex-col gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">Bancos</h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
+                    <Pie
+                      data={chartData.banks}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius="50%"
+                      outerRadius="80%"
+                      paddingAngle={3}
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                    >
+                      {chartData.banks.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
+                  Evolução Mensal
+                </h3>
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={chartData.temporal} margin={{ left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                    <Area
+                      type="monotone"
+                      dataKey="valor"
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.1}
+                      strokeWidth={4}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
+                Classificação de Gastos
+              </h3>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 35)}>
+                <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    tick={{ fontSize: 10, fontWeight: "bold" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                  <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
+                Top Justificativas
+              </h3>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 35)}>
+                <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    tick={{ fontSize: 10, fontWeight: "bold" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip formatter={(v: any) => formatCurrency(v)} />
+                  <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="tabela">
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="p-4 bg-slate-50 flex justify-between items-center">
+                <h3 className="font-black uppercase text-xs text-slate-500">
+                  {viewMode === "current" ? "Lançamentos do Mês" : "Cronograma Futuro"}
+                </h3>
+                <Input
+                  className="h-8 text-xs w-48 bg-white"
+                  placeholder="Filtrar..."
+                  value={filters.search}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                />
+              </div>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="font-black text-[10px]">DATA/FATURA</TableHead>
+                      <TableHead className="font-black text-[10px]">DESCRIÇÃO</TableHead>
+                      <TableHead className="font-black text-[10px] text-center">PARCELA</TableHead>
+                      <TableHead className="font-black text-[10px] text-right">VALOR</TableHead>
+                      <TableHead className="font-black text-[10px] text-center">AÇÕES</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredAndSorted.map((e) => {
+                      const isAntecipado = e.justificativa?.includes("[ANTECIPADO");
+                      return (
+                        <TableRow key={e.id} className={cn(e.isProjecao && "bg-amber-50/20 italic text-slate-500")}>
+                          <TableCell className="text-xs font-bold">
+                            {format(parseISO(e.data), "dd/MM/yy")}
+                            {e.fatura && (
+                              <span className="block text-[9px] text-blue-500">{formatFatura(e.fatura)}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm">{e.despesa}</span>
+                              {isAntecipado && <Zap size={12} className="text-amber-500" />}
+                            </div>
+                            <span className="text-[10px] text-slate-400 block">{e.justificativa}</span>
+                          </TableCell>
+                          <TableCell className="text-center font-black text-xs text-slate-400">
+                            {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
+                          </TableCell>
+                          <TableCell className="text-right font-black text-blue-600">
+                            {formatCurrency(Number(e.valor))}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-center gap-1">
+                              {viewMode === "future" && !e.isProjecao && !isAntecipado && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-amber-500"
+                                  onClick={() => handleAntecipar(e)}
+                                >
+                                  <Zap size={14} />
+                                </Button>
+                              )}
+                              {isAntecipado && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-blue-500"
+                                  onClick={() => handleEstornarAntecipacao(e)}
+                                >
+                                  <RotateCcw size={14} />
+                                </Button>
+                              )}
+                              {!e.isProjecao && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400"
+                                    onClick={() => {
+                                      setEditing(e);
+                                      setFormOpen(true);
+                                    }}
+                                  >
+                                    <Pencil size={14} />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-400"
+                                    onClick={() => setDeleting(e.id)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* MODAIS E FORMS (Mantidos como estavam) */}
+      <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
+        <DialogContent className="rounded-3xl border-none">
+          <DialogHeader>
+            <DialogTitle className="font-black text-center text-blue-900 uppercase">Teto de Gastos</DialogTitle>
+          </DialogHeader>
+          <div className="py-6">
+            <Input
+              type="number"
+              value={tempBudget}
+              onChange={(e) => setTempBudget(Number(e.target.value))}
+              className="text-4xl font-black text-center h-20 bg-blue-50 border-none rounded-2xl"
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveBudget} className="w-full bg-blue-600 font-black h-14 rounded-2xl">
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ExpenseForm
         open={formOpen}
         onOpenChange={setFormOpen}
@@ -440,17 +578,17 @@ export default function Index() {
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-black">Remover despesa?</AlertDialogTitle>
+            <AlertDialogTitle className="font-black">Excluir?</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="font-bold">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>Não</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 font-black"
               onClick={() => {
                 if (deleting) deleteExpense.mutate(deleting, { onSuccess: () => setDeleting(null) });
               }}
             >
-              Remover
+              Sim
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
