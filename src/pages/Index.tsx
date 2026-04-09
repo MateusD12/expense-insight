@@ -420,7 +420,7 @@ export default function Index() {
     );
   };
 
-  const truncateLabel = (text: string, limit: number = 18) => {
+  const truncateLabel = (text: string, limit: number = 14) => {
     if (!text) return "";
     return text.length > limit ? text.substring(0, limit) + "..." : text;
   };
@@ -753,13 +753,13 @@ export default function Index() {
           <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100 overflow-x-auto">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
@@ -786,7 +786,7 @@ export default function Index() {
                     Clique p/ Filtrar
                   </span>
                 </div>
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
                     <Pie
                       data={chartData.banks}
@@ -831,7 +831,7 @@ export default function Index() {
                 <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Evolução Mensal
                 </h3>
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={240}>
                   <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis
@@ -882,17 +882,17 @@ export default function Index() {
                     Clique p/ Filtrar
                   </span>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(260, chartData.cats.length * 35)}>
+                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 35)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={120}
+                      width={100}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateLabel(val, 18)}
+                      tickFormatter={(val) => truncateLabel(val, 14)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -908,7 +908,7 @@ export default function Index() {
                       dataKey="value"
                       fill="#8b5cf6"
                       radius={[0, 6, 6, 0]}
-                      barSize={24}
+                      barSize={18}
                       onClick={handleCatClick}
                       className="cursor-pointer hover:opacity-80 transition-all"
                     >
@@ -928,17 +928,17 @@ export default function Index() {
                 <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
-                <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 35)}>
+                <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 35)}>
                   <BarChart data={chartData.justs} layout="vertical" margin={{ top: 0, right: 20, left: 0, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={120}
+                      width={100}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateLabel(val, 18)}
+                      tickFormatter={(val) => truncateLabel(val, 14)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -954,7 +954,7 @@ export default function Index() {
                       dataKey="value"
                       fill="#0ea5e9"
                       radius={[0, 6, 6, 0]}
-                      barSize={24}
+                      barSize={18}
                       className="hover:opacity-80 transition-opacity"
                     />
                   </BarChart>
@@ -983,21 +983,21 @@ export default function Index() {
                     </SelectContent>
                   </Select>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, installmentsData.data.length * 45)}>
+                <ResponsiveContainer width="100%" height={Math.max(180, installmentsData.data.length * 40)}>
                   <BarChart
                     data={installmentsData.data}
                     layout="vertical"
-                    margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+                    margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
                   >
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={120}
+                      width={110}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateLabel(val, 18)}
+                      tickFormatter={(val) => truncateLabel(val, 15)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
@@ -1014,7 +1014,7 @@ export default function Index() {
                       stackId="a"
                       fill="#10b981"
                       radius={[0, 0, 0, 0]}
-                      barSize={24}
+                      barSize={18}
                       className="hover:opacity-80 transition-all"
                     />
                     <Bar
@@ -1022,7 +1022,7 @@ export default function Index() {
                       stackId="a"
                       fill="#f59e0b"
                       radius={[0, 6, 6, 0]}
-                      barSize={24}
+                      barSize={18}
                       className="hover:opacity-80 transition-all"
                     />
                   </BarChart>
