@@ -434,7 +434,8 @@ export default function Index() {
     );
   };
 
-  const truncateText = (text: string, limit: number) => {
+  // Corte padronizado em 12 caracteres para garantir que não sobreponha no mobile
+  const truncateText = (text: string, limit: number = 12) => {
     if (!text) return "";
     return text.length > limit ? text.substring(0, limit) + "..." : text;
   };
@@ -764,16 +765,16 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full flex shadow-sm border border-slate-100 overflow-x-auto">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
@@ -902,11 +903,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={100}
+                      width={95}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 15)}
+                      tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -948,11 +949,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={180}
+                      width={95}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 25)}
+                      tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -1003,11 +1004,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={180}
+                      width={95}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 25)}
+                      tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
