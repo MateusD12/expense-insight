@@ -310,19 +310,17 @@ export default function Index() {
           </Select>
         </div>
 
-        {/* INDICADORES EM GRID (Substituindo o SummaryCards) */}
+        {/* INDICADORES EM GRID */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {/* Card 1: Total Gasto */}
           <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-medium opacity-90">Total em Gastos</p>
             <h2 className="text-2xl font-bold mt-1">{formatCurrency(totalSpent)}</h2>
           </div>
 
-          {/* Card 2: Saldo do Teto (Disfarçado de botão) */}
           <div
             className={cn(
               "text-white rounded-xl p-5 shadow-sm flex flex-col justify-center cursor-pointer hover:brightness-110 transition-all",
-              remainingBudget < 0 ? "bg-red-500" : "bg-[#8b5cf6]", // Roxo para combinar com o layout, vermelho se estourar
+              remainingBudget < 0 ? "bg-red-500" : "bg-[#8b5cf6]",
             )}
             onClick={() => {
               setTempBudget(budget);
@@ -337,19 +335,16 @@ export default function Index() {
             <h2 className="text-2xl font-bold mt-1">{formatCurrency(remainingBudget)}</h2>
           </div>
 
-          {/* Card 3: Transações */}
           <div className="bg-[#10b981] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-medium opacity-90">Transações</p>
             <h2 className="text-2xl font-bold mt-1">{filteredAndSorted.length}</h2>
           </div>
 
-          {/* Card 4: Bancos */}
           <div className="bg-[#14b8a6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-medium opacity-90">Bancos</p>
             <h2 className="text-2xl font-bold mt-1">{uniqueBancos}</h2>
           </div>
 
-          {/* Card 5: Categorias */}
           <div className="bg-[#f97316] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-medium opacity-90">Categorias</p>
             <h2 className="text-2xl font-bold mt-1">{uniqueCats}</h2>
@@ -541,7 +536,28 @@ export default function Index() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={() => {}} />
+
+      <ExpenseForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        initialData={editing}
+        onSubmit={(data) => {
+          if (editing) {
+            updateExpense.mutate(
+              { id: editing.id, ...data },
+              {
+                onSuccess: () => toast.success("Gasto atualizado!"),
+                onError: () => toast.error("Erro ao atualizar o gasto."),
+              },
+            );
+          } else {
+            addExpense.mutate(data, {
+              onSuccess: () => toast.success("Gasto adicionado!"),
+              onError: () => toast.error("Erro ao adicionar o gasto."),
+            });
+          }
+        }}
+      />
     </div>
   );
 }
