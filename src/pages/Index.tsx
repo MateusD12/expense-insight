@@ -17,8 +17,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Pencil, Trash2, LogOut, Wallet, CalendarClock, Zap, RotateCcw, Filter } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Plus, Pencil, Trash2, LogOut, Wallet, Target, Filter, CalendarClock, Zap, RotateCcw } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -74,13 +74,14 @@ export default function Index() {
   const [budget, setBudget] = useState<number | null>(null);
   const [tempBudget, setTempBudget] = useState<number>(0);
 
-  const { data: allExpenses = [], addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
 
-  const [filters, setFilters] = useState({ search: "", banco: "all", fatura: "all" });
+  const [filters, setFilters] = useState({ search: "", banco: "all", classificacao: "all", fatura: "all" });
   const [sortConfig, setSortConfig] = useState<{ key: keyof Expense; direction: "asc" | "desc" }>({
     key: "data",
     direction: "desc",
   });
+  const [showFilters, setShowFilters] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -111,22 +112,25 @@ export default function Index() {
     toast.success("Teto atualizado!");
   };
 
-  // --- LÓGICA DE PROJEÇÃO DE PARCELAS ---
+  // --- LÓGICA DE PROJEÇÃO DE PARCELAS ADICIONADA ---
   const processedExpenses = useMemo(() => {
     const today = new Date();
     let list: any[] = [];
 
     allExpenses.forEach((exp) => {
       list.push({ ...exp, isProjecao: false });
+      // Se for futuro, gera as parcelas virtuais
       if (exp.total_parcela && exp.total_parcela > 1 && viewMode === "future") {
         const dataOriginal = new Date(exp.data);
+        const faturaOriginal = exp.fatura ? new Date(exp.fatura) : dataOriginal;
+
         for (let i = 1; i <= exp.total_parcela - exp.parcela; i++) {
           list.push({
             ...exp,
             id: `${exp.id}-virtual-${i}`,
             parcela: exp.parcela + i,
             data: format(addMonths(dataOriginal, i), "yyyy-MM-dd"),
-            fatura: exp.fatura ? format(addMonths(new Date(exp.fatura), i), "yyyy-MM-dd") : null,
+            fatura: format(addMonths(faturaOriginal, i), "yyyy-MM-dd"),
             isProjecao: true,
           });
         }
@@ -149,13 +153,11 @@ export default function Index() {
       const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
       return matchSearch && matchBanco && matchFatura;
     });
-
-    result.sort((a: any, b: any) => {
-      if (sortConfig.key === "valor") return sortConfig.direction === "asc" ? a.valor - b.valor : b.valor - a.valor;
-      return sortConfig.direction === "asc"
+    result.sort((a: any, b: any) =>
+      sortConfig.direction === "asc"
         ? String(a[sortConfig.key]).localeCompare(String(b[sortConfig.key]))
-        : String(b[sortConfig.key]).localeCompare(String(a[sortConfig.key]));
-    });
+        : String(b[sortConfig.key]).localeCompare(String(a[sortConfig.key])),
+    );
     return result;
   }, [processedExpenses, filters, sortConfig]);
 
@@ -197,16 +199,19 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
+  const truncate = (str: string) => (str.length > 15 ? str.substring(0, 15) + "..." : str);
+
+  // --- FUNÇÕES DE ANTECIPAÇÃO ---
   const handleAntecipar = async (expense: Expense) => {
     const todayStr = format(new Date(), "yyyy-MM-dd");
-    const novaJustificativa = `[ANTECIPADO original:${expense.data}] ${expense.justificativa || ""}`;
+    const novaJustificativa = `[ANTECIPADO original:${expense.fatura || expense.data}] ${expense.justificativa || ""}`;
     await updateExpense.mutateAsync({
       id: expense.id,
       data: todayStr,
       fatura: todayStr,
       justificativa: novaJustificativa,
     });
-    toast.success("Parcela antecipada!");
+    toast.success("Parcela antecipada para o mês atual!");
   };
 
   const handleEstornarAntecipacao = async (expense: Expense) => {
@@ -224,13 +229,6 @@ export default function Index() {
     }
   };
 
-  const truncate = (str: string) => (str.length > 15 ? str.substring(0, 15) + "..." : str);
-
-  if (isCheckingAuth)
-    return (
-      <div className="h-screen flex items-center justify-center font-bold text-slate-400 italic">Carregando...</div>
-    );
-
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
       <div className="bg-gradient-to-r from-blue-700 to-indigo-900 text-white px-4 py-6 shadow-lg">
@@ -242,6 +240,7 @@ export default function Index() {
             <h1 className="text-lg font-black uppercase tracking-tighter">Finanças Mateus</h1>
           </div>
           <div className="flex gap-2">
+            {/* BOTÃO DE ALTERNAR VISÃO ADICIONADO */}
             <Button
               variant={viewMode === "future" ? "secondary" : "outline"}
               className={cn("h-10 font-bold", viewMode === "future" && "bg-amber-400 text-amber-900 border-none")}
@@ -263,7 +262,9 @@ export default function Index() {
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-lg">
-            <p className="text-[10px] font-black opacity-80 uppercase mb-1">Total</p>
+            <p className="text-[10px] font-black opacity-80 uppercase mb-1">
+              {viewMode === "current" ? "Total Fatura" : "Total Projetado"}
+            </p>
             <h2 className="text-xl font-black">{formatCurrency(totalSpent)}</h2>
           </div>
           <div className="bg-slate-800 text-white rounded-2xl p-5 shadow-lg">
@@ -353,13 +354,13 @@ export default function Index() {
               <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
                 Classificação de Gastos
               </h3>
-              <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 35)}>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
                 <BarChart data={chartData.cats} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={100}
+                    width={120}
                     tick={{ fontSize: 10, fontWeight: "bold" }}
                     axisLine={false}
                     tickLine={false}
@@ -375,13 +376,13 @@ export default function Index() {
               <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
                 Top Justificativas
               </h3>
-              <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 35)}>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 40)}>
                 <BarChart data={chartData.justs} layout="vertical" margin={{ left: 10, right: 30 }}>
                   <XAxis type="number" hide />
                   <YAxis
                     dataKey="name"
                     type="category"
-                    width={100}
+                    width={120}
                     tick={{ fontSize: 10, fontWeight: "bold" }}
                     axisLine={false}
                     tickLine={false}
@@ -402,7 +403,7 @@ export default function Index() {
                 </h3>
                 <Input
                   className="h-8 text-xs w-48 bg-white"
-                  placeholder="Filtrar..."
+                  placeholder="Buscar..."
                   value={filters.search}
                   onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
                 />
@@ -429,7 +430,7 @@ export default function Index() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-sm block">{e.despesa}</span>
-                            {isAntecipado && <Zap size={12} className="text-amber-500" />}
+                            {isAntecipado && <Zap size={12} className="text-amber-500 fill-amber-500" />}
                           </div>
                           <span className="text-[10px] text-slate-400">{e.justificativa}</span>
                         </TableCell>
@@ -441,6 +442,7 @@ export default function Index() {
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-center gap-1">
+                            {/* AÇÕES DE ANTECIPAÇÃO ADICIONADAS */}
                             {viewMode === "future" && !e.isProjecao && !isAntecipado && (
                               <Button
                                 variant="ghost"
