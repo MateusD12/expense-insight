@@ -337,9 +337,9 @@ export default function Index() {
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
-    const temporal: Record<string, number> = {};
     const cats: Record<string, number> = {};
     const justs: Record<string, number> = {};
+    const temporal: Record<string, number> = {};
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
@@ -405,6 +405,10 @@ export default function Index() {
       const isAlreadySelected = prev.banco === bankName && prev.cartao === cardNum;
       return { ...prev, banco: isAlreadySelected ? "all" : bankName, cartao: isAlreadySelected ? "all" : cardNum };
     });
+  };
+
+  const handleCatClick = (data: any) => {
+    setFilters((prev) => ({ ...prev, classificacao: prev.classificacao === data.name ? "all" : data.name }));
   };
 
   const renderSortIcon = (key: string) => {
@@ -698,7 +702,7 @@ export default function Index() {
 
           <div
             className={cn(
-              "text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
+              "text-white rounded-2xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
               budget === null
                 ? "bg-slate-400"
                 : totalSpent > budget
@@ -718,7 +722,7 @@ export default function Index() {
                 {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
+            <h2 className="text-xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
               {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
@@ -778,7 +782,7 @@ export default function Index() {
                   <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
                     Divisão por Banco
                   </h3>
-                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
@@ -1123,7 +1127,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-purple-500 shadow-inner"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
             />
           </div>
           <DialogFooter>
