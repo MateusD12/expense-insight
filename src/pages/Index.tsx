@@ -68,21 +68,6 @@ const BADGE_COLORS: Record<string, string> = {
   "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-// Cores Hexadecimais correspondentes para os gráficos
-const HEX_COLORS: Record<string, string> = {
-  Estudos: "#1e40af", // blue-800
-  Saúde: "#991b1b", // red-800
-  Lazer: "#6b21a8", // purple-800
-  Alimentação: "#9a3412", // orange-800
-  Compras: "#9d174d", // pink-800
-  Transporte: "#166534", // green-800
-  Assinatura: "#3730a3", // indigo-800
-  Presente: "#854d0e", // yellow-800
-  Casa: "#065f46", // emerald-800
-  Carro: "#155e75", // cyan-800
-  "Vida Pessoal": "#9f1239", // rose-800
-};
-
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -547,7 +532,7 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-4 sm:p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-3 relative overflow-hidden">
+        <div className="bg-white p-3 sm:p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-3 relative overflow-hidden">
           <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
             <Input
               className="col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
@@ -743,22 +728,16 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
-            {/* Definições de Gradientes para os Gráficos */}
             <svg width="0" height="0">
               <defs>
                 <linearGradient id="colorEvolucao" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                 </linearGradient>
-                <linearGradient id="barJusts" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#0ea5e9" />
-                  <stop offset="100%" stopColor="#38bdf8" />
-                </linearGradient>
               </defs>
             </svg>
 
             <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-              {/* Gráfico 1: Divisão por Banco */}
               <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
                 <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1">
@@ -807,7 +786,6 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Gráfico 2: Evolução Mensal */}
               <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
                 <h3 className="text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 uppercase tracking-widest">
@@ -853,7 +831,6 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Gráfico 3: Categorias (Com Cores Dinâmicas) */}
               <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
                 <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1">
@@ -892,9 +869,7 @@ export default function Index() {
                       {chartData.cats.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={HEX_COLORS[entry.name] || "#cbd5e1"}
-                          stroke={filters.classificacao === entry.name ? "#000" : "none"}
-                          strokeWidth={filters.classificacao === entry.name ? 2 : 0}
+                          fill={filters.classificacao === entry.name ? "#5b21b6" : "#7c3aed"}
                         />
                       ))}
                     </Bar>
@@ -902,7 +877,6 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Gráfico 4: Justificativas */}
               <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-sky-500"></div>
                 <h3 className="text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 uppercase tracking-widest">
@@ -931,7 +905,7 @@ export default function Index() {
                     />
                     <Bar
                       dataKey="value"
-                      fill="url(#barJusts)"
+                      fill="#0ea5e9"
                       radius={[0, 6, 6, 0]}
                       className="hover:brightness-110 transition-all"
                     />
@@ -939,7 +913,6 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* Gráfico 5: Parcelas */}
               <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden md:col-span-2">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1">
