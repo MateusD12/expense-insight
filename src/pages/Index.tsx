@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { RankedList } from "@/components/RankedList";
@@ -26,7 +27,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Download, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown, Check, Wallet } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -62,6 +63,17 @@ const BADGE_COLORS: Record<string, string> = {
   Carro: "bg-slate-100 text-slate-800",
 };
 
+const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+const formatFatura = (d: string | null) => {
+  if (!d) return "-";
+  try {
+    return format(new Date(d.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
+  } catch {
+    return d;
+  }
+};
+
 export default function Index() {
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
   const [filters, setFilters] = useState({
@@ -86,77 +98,56 @@ export default function Index() {
   const [budget, setBudget] = useState<number>(() => Number(localStorage.getItem("expense-budget")) || 4000);
   const [tempBudget, setTempBudget] = useState(budget);
 
-  const formatCurrency = (v: number) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+  // Importação
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
-  const formatFatura = (d: string | null) => {
-    if (!d) return "-";
-    try {
-      return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
-    } catch {
-      return d;
-    }
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split("\n").filter((l) => l.trim() !== "");
+      const headers = lines[0].toLowerCase().split(/[;,]/);
+      const parsedData = lines.slice(1).map((line) => {
+        const values = line.split(/[;,]/);
+        const obj: any = {};
+        headers.forEach((header, i) => {
+          let val = values[i]?.replace(/"/g, "").trim();
+          if (header.includes("valor")) val = val?.replace(",", ".");
+          obj[header.trim()] = val;
+        });
+        return obj;
+      });
+      setImportPreview(parsedData);
+      setShowImportDialog(true);
+    };
+    reader.readAsText(file);
   };
 
-  // --- FUNÇÃO DE EXPORTAÇÃO AJUSTADA PARA EXCEL BRASIL ---
-  const exportToCSV = () => {
-    if (allExpenses.length === 0) {
-      toast.error("Não há dados para exportar.");
-      return;
+  const confirmImport = async () => {
+    try {
+      for (const item of importPreview) {
+        await addExpense.mutateAsync({
+          banco: item.banco || "",
+          cartao: item.cartao || "",
+          valor: Number(item.valor) || 0,
+          data: item.data || new Date().toISOString().split("T")[0],
+          despesa: item.despesa || "",
+          classificacao: item.classificacao || "",
+          justificativa: item.justificativa || "",
+          parcela: Number(item.parcela) || 1,
+          total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
+          fatura: item.fatura || null,
+        });
+      }
+      toast.success("Importação concluída!");
+      setShowImportDialog(false);
+      setImportPreview([]);
+    } catch (err) {
+      toast.error("Erro na importação.");
     }
-
-    // Cabeçalhos
-    const headers = [
-      "ID",
-      "Banco",
-      "Cartao",
-      "Valor",
-      "Data",
-      "Despesa",
-      "Classificacao",
-      "Justificativa",
-      "Parcela",
-      "Total_Parcelas",
-      "Fatura",
-    ];
-
-    const rows = allExpenses.map((e) => {
-      // Converte o ponto em vírgula para o Excel reconhecer como número/moeda
-      const valorFormatado = e.valor.toString().replace(".", ",");
-
-      return [
-        e.id,
-        e.banco,
-        e.cartao,
-        valorFormatado,
-        e.data,
-        `"${e.despesa}"`,
-        e.classificacao,
-        `"${e.justificativa}"`,
-        e.parcela,
-        e.total_parcela,
-        e.fatura,
-      ];
-    });
-
-    // Usamos o ponto-e-vírgula (;) como separador para não conflitar com a vírgula decimal
-    const csvContent = [headers, ...rows].map((e) => e.join(";")).join("\n");
-
-    // Adicionamos o BOM (Byte Order Mark) para o Excel entender que o arquivo é UTF-8 e não quebrar acentos
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
-
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute("href", url);
-    link.setAttribute("download", `backup_despesas_${format(new Date(), "dd_MM_yyyy")}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    toast.success("Backup ajustado baixado!");
   };
 
   const filteredAndSorted = useMemo(() => {
@@ -171,25 +162,17 @@ export default function Index() {
           e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
           e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
         const matchBanco = filters.banco === "all" || e.banco === filters.banco;
-        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-        let matchDate = true;
-        if (filters.dataInicio && filters.dataFim && e.data) {
-          try {
-            const date = parseISO(e.data);
-            matchDate = isWithinInterval(date, { start: parseISO(filters.dataInicio), end: parseISO(filters.dataFim) });
-          } catch {}
-        }
-        return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
+        return matchSearch && matchBanco && matchCat && matchJust && matchFatura;
       });
-
     result.sort((a, b) => {
       const aVal = a[sortConfig.key] ?? "";
       const bVal = b[sortConfig.key] ?? "";
-      return sortConfig.direction === "asc" ? (aVal < bVal ? -1 : 1) : aVal < bVal ? 1 : -1;
+      const rev = sortConfig.direction === "asc" ? 1 : -1;
+      return aVal < bVal ? -1 * rev : 1 * rev;
     });
     return result;
   }, [allExpenses, filters, sortConfig]);
@@ -202,10 +185,6 @@ export default function Index() {
           .filter(Boolean) as string[],
       ),
     ].sort();
-  const cartoes =
-    filters.banco === "all"
-      ? unique("cartao")
-      : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
   const pieData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -234,20 +213,48 @@ export default function Index() {
     );
   };
 
+  const areaData = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAndSorted.forEach((e) => {
+      if (e.fatura) {
+        const fat = e.fatura.slice(0, 7);
+        map[fat] = (map[fat] || 0) + Number(e.valor);
+      }
+    });
+    return Object.entries(map)
+      .sort()
+      .map(([f, valor]) => ({ name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }), valor }));
+  }, [filteredAndSorted]);
+
   const installmentsData = useMemo(() => {
     let data = filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1);
+    const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
     if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
-    return data.map((e) => ({
-      name: `${e.justificativa || "Sem justificativa"} (${e.parcela}/${e.total_parcela})`,
-      Pagas: e.parcela - 1,
-      Restantes: e.total_parcela - e.parcela + 1,
-    }));
+    return {
+      data: data.map((e) => ({
+        name: `${e.justificativa || "Sem info"} (${e.parcela}/${e.total_parcela})`,
+        Pagas: e.parcela - 1,
+        Restantes: e.total_parcela - (e.parcela - 1),
+      })),
+      options: uniqueJust,
+    };
   }, [filteredAndSorted, installmentFilter]);
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
   const uniqueBancos = new Set(filteredAndSorted.map((e) => e.banco)).size;
   const uniqueCats = new Set(filteredAndSorted.map((e) => e.classificacao)).size;
   const remainingBudget = budget - totalSpent;
+
+  const handleSort = (key: keyof Expense) =>
+    setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc" }));
+  const getSortIcon = (key: keyof Expense) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-1 opacity-30 inline" />;
+    return sortConfig.direction === "asc" ? (
+      <ArrowUp size={12} className="ml-1 inline" />
+    ) : (
+      <ArrowDown size={12} className="ml-1 inline" />
+    );
+  };
 
   if (isLoading)
     return <div className="h-screen flex items-center justify-center font-bold text-slate-500">Carregando...</div>;
@@ -258,17 +265,22 @@ export default function Index() {
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">💳 Controle de Gastos</h1>
-            <p className="text-blue-100 text-sm mt-1">Acompanhamento mensal dos gastos no cartão de crédito</p>
+            <p className="text-blue-100 text-sm mt-1">Acompanhamento mensal detalhado</p>
           </div>
           <div className="flex gap-2">
+            <div className="relative">
+              <input
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+              />
+              <Button variant="outline" className="bg-white/10 hover:bg-white/20 border-white/30 text-white font-bold">
+                <Upload className="mr-2 h-4 w-4" /> Importar
+              </Button>
+            </div>
             <Button
-              className="bg-emerald-500 hover:bg-emerald-600 text-white border-none font-bold"
-              onClick={exportToCSV}
-            >
-              <Download className="mr-2 h-4 w-4" /> Exportar Backup (CSV)
-            </Button>
-            <Button
-              className="bg-white/20 hover:bg-white/30 text-white border-none"
+              className="bg-white text-blue-600 hover:bg-blue-50 border-none font-bold"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -281,7 +293,7 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* Barra de Filtros */}
+        {/* Filtros */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <Input
             className="pl-4 h-10 flex-1 min-w-[200px]"
@@ -289,7 +301,7 @@ export default function Index() {
             value={filters.search}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
-          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
+          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
             <SelectTrigger className="w-[140px] h-10">
               <SelectValue placeholder="Bancos" />
             </SelectTrigger>
@@ -407,30 +419,65 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Acompanhamento de Parcelas</h3>
-                <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.length * 40)}>
-                  <BarChart
-                    data={installmentsData}
-                    layout="vertical"
-                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
-                    <XAxis type="number" hide />
+                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Evolução por Fatura</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={areaData}>
+                    <defs>
+                      <linearGradient id="colorPurple" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-xs text-slate-500" />
                     <YAxis
-                      dataKey="name"
-                      type="category"
-                      width={180}
-                      tick={{ fontSize: 11, fill: "#64748b" }}
+                      tickFormatter={(v) => `R$${v / 1000}k`}
                       axisLine={false}
                       tickLine={false}
+                      className="text-xs text-slate-500"
                     />
-                    <Tooltip cursor={{ fill: "transparent" }} />
-                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
-                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]} />
-                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
-                  </BarChart>
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={2} />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-sm font-semibold text-slate-600 uppercase">Acompanhamento de Parcelas</h3>
+                <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                  <SelectTrigger className="w-[200px] h-8 text-xs">
+                    <SelectValue placeholder="Filtrar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas</SelectItem>
+                    {installmentsData.options.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.data.length * 40)}>
+                <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={180}
+                    tick={{ fontSize: 11 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip cursor={{ fill: "transparent" }} />
+                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]} />
+                  <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </TabsContent>
 
@@ -439,9 +486,15 @@ export default function Index() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead>Banco</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                    <TableHead>Data</TableHead>
+                    <TableHead onClick={() => handleSort("banco")} className="cursor-pointer">
+                      Banco {getSortIcon("banco")}
+                    </TableHead>
+                    <TableHead onClick={() => handleSort("valor")} className="text-right cursor-pointer">
+                      Valor {getSortIcon("valor")}
+                    </TableHead>
+                    <TableHead onClick={() => handleSort("data")} className="cursor-pointer">
+                      Data {getSortIcon("data")}
+                    </TableHead>
                     <TableHead>Parcela</TableHead>
                     <TableHead>Despesa</TableHead>
                     <TableHead>Categoria</TableHead>
@@ -449,44 +502,56 @@ export default function Index() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSorted.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-bold">{e.banco}</TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell>{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="font-bold text-xs">
-                        {e.parcela}/{e.total_parcela}
-                      </TableCell>
-                      <TableCell className="font-bold">{e.despesa}</TableCell>
-                      <TableCell>
-                        <Badge className="font-bold text-[10px] border-none uppercase">{e.classificacao}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => {
-                              setEditing(e);
-                              setFormOpen(true);
-                            }}
-                          >
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500"
-                            onClick={() => setDeleting(e.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredAndSorted.map((e) => {
+                    const vParcela = Number(e.valor);
+                    const vFalta = vParcela * (e.total_parcela - e.parcela + 1);
+                    return (
+                      <TableRow key={e.id}>
+                        <TableCell className="font-bold">{e.banco}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-black text-blue-600">{formatCurrency(vParcela)}</div>
+                          {e.total_parcela > 1 && (
+                            <div className="text-[9px] text-orange-600 font-bold uppercase">
+                              Falta: {formatCurrency(vFalta)}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
+                        <TableCell className="font-bold text-xs">
+                          {e.parcela}/{e.total_parcela}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-bold">{e.despesa}</div>
+                          <div className="text-[10px] text-slate-400 italic">{e.justificativa}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className="font-bold text-[10px] uppercase">{e.classificacao}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditing(e);
+                                setFormOpen(true);
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-500"
+                              onClick={() => setDeleting(e.id)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -494,18 +559,19 @@ export default function Index() {
         </Tabs>
       </div>
 
+      {/* DIALOGS */}
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>Ajustar Teto Mensal</DialogTitle>
-            <DialogDescription>Defina o seu limite de gastos.</DialogDescription>
+            <DialogTitle>Ajustar Teto</DialogTitle>
+            <DialogDescription>Seu limite de gastos.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-3xl font-black h-16 bg-slate-50 border-none text-center"
+              className="text-3xl font-black text-center h-16"
             />
           </div>
           <DialogFooter>
@@ -516,15 +582,95 @@ export default function Index() {
                 setBudgetDialogOpen(false);
                 toast.success("Teto atualizado!");
               }}
-              className="bg-blue-600 font-bold h-12 w-full rounded-xl"
+              className="w-full bg-blue-600 font-bold h-12"
             >
-              Salvar Novo Teto
+              Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={(data) => {}} />
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-black">CONFERIR DADOS</DialogTitle>
+            <DialogDescription>Verifique se os valores estão corretos.</DialogDescription>
+          </DialogHeader>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Despesa</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Fatura</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {importPreview.slice(0, 10).map((item, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{item.despesa}</TableCell>
+                  <TableCell className="text-right font-bold">{formatCurrency(Number(item.valor))}</TableCell>
+                  <TableCell>{formatFatura(item.fatura)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmImport} className="bg-emerald-600 font-bold">
+              <Check className="mr-2 h-4 w-4" /> Confirmar {importPreview.length} Itens
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ExpenseForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        initialData={editing}
+        onSubmit={(data) => {
+          const faturaSegura = data.fatura && data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura;
+          const payload = {
+            ...data,
+            valor: Number(data.valor),
+            parcela: Number(data.parcela),
+            total_parcela: Number(data.total_parcela),
+            fatura: faturaSegura,
+          };
+          if (editing) {
+            updateExpense.mutate({ id: editing.id, ...payload }, { onSuccess: () => toast.success("Atualizado!") });
+          } else {
+            addExpense.mutate(payload, { onSuccess: () => toast.success("Adicionado!") });
+          }
+        }}
+      />
+
+      <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir?</AlertDialogTitle>
+            <AlertDialogDescription>Isso não pode ser desfeito.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Não</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600"
+              onClick={() => {
+                if (deleting)
+                  deleteExpense.mutate(deleting, {
+                    onSuccess: () => {
+                      toast.success("Excluído!");
+                      setDeleting(null);
+                    },
+                  });
+              }}
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
