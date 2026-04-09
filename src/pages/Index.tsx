@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Target } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Target, FilterX } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -66,7 +66,17 @@ export default function Index() {
 
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
 
-  const [filters, setFilters] = useState({ search: "", fatura: "all" });
+  const [filters, setFilters] = useState({
+    search: "",
+    banco: "all",
+    cartao: "all",
+    classificacao: "all",
+    justificativa: "all",
+    fatura: "all",
+    dataInicio: "",
+    dataFim: "",
+  });
+  const [installmentFilter, setInstallmentFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -159,7 +169,6 @@ export default function Index() {
           return;
         }
 
-        // Apenas ponto e vírgula como separador
         const headers = lines[0]
           .toLowerCase()
           .replace(/^\ufeff/, "")
@@ -171,7 +180,6 @@ export default function Index() {
           const values = line.split(";");
           const obj: any = {};
           headers.forEach((h, i) => {
-            // Limpa aspas extras que vêm do Excel
             let v = values[i]?.replace(/^"|"$/g, "").trim();
             if (h.includes("valor") && v) v = v.replace(",", ".");
             obj[h] = v;
@@ -233,30 +241,71 @@ export default function Index() {
     }
   };
 
+  const normalizedExpenses = useMemo(() => {
+    return allExpenses.map((e) => ({
+      ...e,
+      parcela: e.parcela && e.parcela > 0 ? e.parcela : 1,
+      total_parcela: e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1,
+    }));
+  }, [allExpenses]);
+
+  const unique = (key: keyof Expense) =>
+    [
+      ...new Set(
+        normalizedExpenses
+          .map((e) => (key === "fatura" && e[key] ? (e[key] as string).slice(0, 7) : e[key]))
+          .filter(Boolean) as string[],
+      ),
+    ].sort();
+
   const filteredAndSorted = useMemo(() => {
-    return allExpenses
+    return normalizedExpenses
       .filter((e) => {
         const matchSearch =
           e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
           e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
+        const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
+        const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+        const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
+
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-        return matchSearch && matchFatura;
+
+        const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
+        const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
+
+        return (
+          matchSearch &&
+          matchBanco &&
+          matchCartao &&
+          matchCat &&
+          matchJust &&
+          matchFatura &&
+          matchDataInicio &&
+          matchDataFim
+        );
       })
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [allExpenses, filters]);
+  }, [normalizedExpenses, filters]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
     const cats: Record<string, number> = {};
     const justs: Record<string, number> = {};
+    const temporal: Record<string, number> = {};
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
-      const bankKey = `${e.banco} ••${e.cartao}`;
+      const bankKey = `${e.banco} ${e.cartao ? "••" + e.cartao : ""}`.trim();
       banks[bankKey] = (banks[bankKey] || 0) + val;
       cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
       justs[e.justificativa || "Outros"] = (justs[e.justificativa || "Outros"] || 0) + val;
+
+      if (e.fatura) {
+        const f = e.fatura.slice(0, 7);
+        temporal[f] = (temporal[f] || 0) + val;
+      }
     });
 
     return {
@@ -266,16 +315,44 @@ export default function Index() {
         .map(([name, value]) => ({ name, value })),
       justs: Object.entries(justs)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 8)
+        .slice(0, 10)
         .map(([name, value]) => ({ name, value })),
+      temporal: Object.entries(temporal)
+        .sort()
+        .map(([f, valor]) => ({
+          name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
+          valor,
+        })),
     };
   }, [filteredAndSorted]);
 
+  const installmentsData = useMemo(() => {
+    let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
+    const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
+
+    if (installmentFilter !== "all") {
+      data = data.filter((e) => e.justificativa === installmentFilter);
+    }
+
+    const latestInstallments: Record<string, any> = {};
+    data.forEach((e) => {
+      const key = e.justificativa || e.despesa || "Sem info";
+      if (!latestInstallments[key] || e.parcela > latestInstallments[key].parcela) {
+        latestInstallments[key] = e;
+      }
+    });
+
+    return {
+      data: Object.values(latestInstallments).map((e) => ({
+        name: `${e.justificativa || e.despesa} (${e.parcela}/${e.total_parcela})`,
+        Pagas: e.parcela - 1,
+        Restantes: e.total_parcela - (e.parcela - 1),
+      })),
+      options: uniqueJust,
+    };
+  }, [filteredAndSorted, installmentFilter]);
+
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
-  const uniqueFaturas = useMemo(
-    () => [...new Set(allExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean))].sort(),
-    [allExpenses],
-  );
 
   if (isCheckingAuth)
     return (
@@ -387,29 +464,116 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
-          <Input
-            className="pl-4 h-11 flex-1 min-w-[200px] bg-slate-50 border-none"
-            placeholder="Buscar despesa ou justificativa..."
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-          />
-          <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-            <SelectTrigger className="w-[160px] h-11 bg-slate-50 border-none font-bold">
-              <SelectValue placeholder="Faturas" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {uniqueFaturas.map((f) => (
-                <SelectItem key={f} value={f}>
-                  {formatFatura(f)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Painel de Filtros Completo */}
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
+          <div className="flex flex-wrap gap-3">
+            <Input
+              className="pl-4 h-11 flex-1 min-w-[200px] bg-slate-50 border-none font-bold"
+              placeholder="Buscar despesa ou justificativa..."
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            />
+            <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
+              <SelectTrigger className="w-[150px] h-11 bg-slate-50 border-none font-bold">
+                <SelectValue placeholder="Faturas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Faturas</SelectItem>
+                {unique("fatura").map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {formatFatura(f)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
+              <SelectTrigger className="w-[150px] h-11 bg-slate-50 border-none font-bold">
+                <SelectValue placeholder="Bancos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Bancos</SelectItem>
+                {unique("banco").map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.classificacao}
+              onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
+            >
+              <SelectTrigger className="w-[160px] h-11 bg-slate-50 border-none font-bold">
+                <SelectValue placeholder="Categorias" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Categorias</SelectItem>
+                {unique("classificacao").map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <Select
+              value={filters.justificativa}
+              onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
+            >
+              <SelectTrigger className="w-[200px] h-11 bg-slate-50 border-none font-bold">
+                <SelectValue placeholder="Justificativas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas Justificativas</SelectItem>
+                {unique("justificativa").map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-xl h-11 border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">De:</span>
+              <input
+                type="date"
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                value={filters.dataInicio}
+                onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
+              />
+            </div>
+            <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-xl h-11 border border-slate-100">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Até:</span>
+              <input
+                type="date"
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none"
+                value={filters.dataFim}
+                onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
+              />
+            </div>
+            <Button
+              variant="ghost"
+              className="text-red-500 font-bold h-11"
+              onClick={() =>
+                setFilters({
+                  search: "",
+                  banco: "all",
+                  cartao: "all",
+                  classificacao: "all",
+                  justificativa: "all",
+                  fatura: "all",
+                  dataInicio: "",
+                  dataFim: "",
+                })
+              }
+            >
+              <FilterX size={16} className="mr-2" /> Limpar Filtros
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Cards de Indicadores */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-xl">
             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Total Gastos</p>
             <h2 className="text-2xl font-black">{formatCurrency(totalSpent)}</h2>
@@ -444,6 +608,14 @@ export default function Index() {
             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
             <h2 className="text-2xl font-black">{filteredAndSorted.length}</h2>
           </div>
+
+          <div className="bg-slate-800 text-white rounded-2xl p-5 shadow-xl">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Maior Categoria</p>
+            <h2 className="text-xl font-black truncate">{chartData.cats.length > 0 ? chartData.cats[0].name : "-"}</h2>
+            {chartData.cats.length > 0 && (
+              <p className="text-xs text-slate-300 font-bold">{formatCurrency(chartData.cats[0].value)}</p>
+            )}
+          </div>
         </div>
 
         <Tabs defaultValue="dashboard">
@@ -460,7 +632,7 @@ export default function Index() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Gastos por Banco
+                  Divisão por Banco
                 </h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -484,11 +656,39 @@ export default function Index() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
+
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Ranking por Categoria
+                  Evolução Mensal
                 </h3>
                 <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={chartData.temporal}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: "bold" }} />
+                    <YAxis
+                      tickFormatter={(v) => `R$${v / 1000}k`}
+                      tick={{ fontSize: 10 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Area
+                      type="monotone"
+                      dataKey="valor"
+                      stroke="#8b5cf6"
+                      fill="#8b5cf6"
+                      fillOpacity={0.1}
+                      strokeWidth={3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
+                  Classificação de Gastos
+                </h3>
+                <ResponsiveContainer width="100%" height={Math.max(250, chartData.cats.length * 30)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ left: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
@@ -504,17 +704,62 @@ export default function Index() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                 <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Top 8 Justificativas
+                  Top 10 Justificativas
                 </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData.justs} margin={{ bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: "bold" }} angle={-15} textAnchor="end" />
-                    <YAxis tickFormatter={(v) => `R$${v}`} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <ResponsiveContainer width="100%" height={Math.max(250, chartData.justs.length * 30)}>
+                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 20 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={100}
+                      tick={{ fontSize: 10, fontWeight: "bold" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="value" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Acompanhamento de Parcelas
+                  </h3>
+                  <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs font-bold">
+                      <SelectValue placeholder="Filtrar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as Compras</SelectItem>
+                      {installmentsData.options.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.data.length * 40)}>
+                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 20 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={180}
+                      tick={{ fontSize: 10, fontWeight: "bold" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: "11px" }} />
+                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -528,6 +773,9 @@ export default function Index() {
                   <TableRow className="bg-slate-50 border-none">
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Banco</TableHead>
                     <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">Valor</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">
+                      Parcela
+                    </TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Data</TableHead>
                     <TableHead className="font-black text-[10px] uppercase tracking-widest">Despesa</TableHead>
                     <TableHead />
@@ -537,13 +785,11 @@ export default function Index() {
                   {filteredAndSorted.map((e) => (
                     <TableRow key={e.id} className="hover:bg-slate-50/50 transition-colors">
                       <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="font-black text-blue-600">{formatCurrency(Number(e.valor))}</div>
-                        {e.total_parcela > 1 && (
-                          <div className="text-[9px] text-orange-500 font-black uppercase">
-                            {e.parcela}/{e.total_parcela}
-                          </div>
-                        )}
+                      <TableCell className="text-right font-black text-blue-600">
+                        {formatCurrency(Number(e.valor))}
+                      </TableCell>
+                      <TableCell className="text-center font-black text-xs text-slate-400">
+                        {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
                       </TableCell>
                       <TableCell className="text-slate-500 text-xs font-bold">
                         {format(parseISO(e.data), "dd/MM/yy")}
