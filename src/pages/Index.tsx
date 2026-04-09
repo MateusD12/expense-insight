@@ -139,9 +139,12 @@ export default function Index() {
       .from("profiles" as any)
       .select("*")
       .eq("id", uid)
-      .single();
-    if (data && (data as any).budget !== undefined) setBudget(Number((data as any).budget));
-    else setBudget(null);
+      .maybeSingle();
+    if (data && (data as any).budget !== undefined) {
+      setBudget(Number((data as any).budget));
+    } else {
+      setBudget(null);
+    }
   };
 
   const handleSaveBudget = async () => {
@@ -152,12 +155,15 @@ export default function Index() {
       setBudgetDialogOpen(false);
       toast.success("Teto atualizado!");
     } else {
-      toast.error("Erro ao salvar.");
+      toast.error("Erro ao salvar teto.");
     }
   };
 
   const loginWithGoogle = () => {
-    supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: window.location.origin } });
+    supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: window.location.origin },
+    });
   };
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -190,7 +196,6 @@ export default function Index() {
         const headers = lines[0]
           .toLowerCase()
           .replace(/^\ufeff/, "")
-          .replace(/"/g, "")
           .split(";")
           .map((h) => h.trim());
         const parsed = lines.slice(1).map((line) => {
@@ -206,48 +211,46 @@ export default function Index() {
         setImportPreview(parsed);
         setShowImportDialog(true);
       } catch (err) {
-        toast.error("Erro no arquivo CSV.");
+        toast.error("Erro ao ler o CSV.");
       }
     };
     reader.readAsText(file);
     event.target.value = "";
   };
 
-  const safeString = (val: any) => (val !== null && val !== undefined ? String(val).trim() : "");
-
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
-        let dataSegura = safeString(item.data);
+        let dataSegura = String(item.data || "");
         if (dataSegura.includes("/")) {
           const p = dataSegura.split("/");
           if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
         }
         let faturaSegura = null;
-        const faturaRaw = safeString(item.fatura);
+        const faturaRaw = String(item.fatura || "");
         if (faturaRaw !== "") faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
 
         const payload = {
-          banco: safeString(item.banco) || "Desconhecido",
-          cartao: safeString(item.cartao),
-          valor: Number(safeString(item.valor)) || 0,
+          banco: item.banco || "Desconhecido",
+          cartao: item.cartao,
+          valor: Number(item.valor) || 0,
           data: dataSegura || new Date().toISOString().split("T")[0],
-          despesa: safeString(item.despesa) || "Importado",
-          classificacao: safeString(item.classificacao) || "Outros",
-          justificativa: safeString(item.justificativa),
+          despesa: item.despesa || "Importado",
+          classificacao: item.classificacao || "Outros",
+          justificativa: item.justificativa,
           parcela: Number(item.parcela) || 1,
-          total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
+          total_parcela: Number(item.total_parcela || item.total_parcelas) || 1,
           fatura: faturaSegura,
           user_id: session.user.id,
         };
         await addExpense.mutateAsync(payload);
       }
-      toast.success("Importação concluída!");
+      toast.success("Tudo importado!");
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
-      toast.error("Erro ao importar.");
+      toast.error("Erro na importação.");
     }
   };
 
@@ -268,6 +271,12 @@ export default function Index() {
       ),
     ].sort();
 
+  const requestSort = (key: keyof Expense) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
+    setSortConfig({ key, direction });
+  };
+
   const filteredAndSorted = useMemo(() => {
     let result = normalizedExpenses.filter((e) => {
       const matchSearch =
@@ -283,12 +292,16 @@ export default function Index() {
     });
 
     result.sort((a: any, b: any) => {
-      if (sortConfig.key === "valor")
-        return sortConfig.direction === "asc" ? Number(a.valor) - Number(b.valor) : Number(b.valor) - Number(a.valor);
-      if (sortConfig.key === "data")
+      if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
+        const aVal = Number(a[sortConfig.key]) || 0;
+        const bVal = Number(b[sortConfig.key]) || 0;
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+      }
+      if (sortConfig.key === "data") {
         return sortConfig.direction === "asc"
           ? new Date(a.data).getTime() - new Date(b.data).getTime()
           : new Date(b.data).getTime() - new Date(a.data).getTime();
+      }
       const aVal = String(a[sortConfig.key] || "").toLowerCase();
       const bVal = String(b[sortConfig.key] || "").toLowerCase();
       return sortConfig.direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
@@ -322,6 +335,7 @@ export default function Index() {
         .map(([name, value]) => ({ name, value })),
       justs: Object.entries(justs)
         .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
         .map(([name, value]) => ({ name, value })),
       temporal: Object.entries(temporal)
         .sort()
@@ -354,8 +368,8 @@ export default function Index() {
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
   const handleBankClick = (data: any) => {
-    const parts = data.name.split(" ••");
-    setFilters((prev) => ({ ...prev, banco: prev.banco === parts[0] ? "all" : parts[0] }));
+    const bankName = data.name.split(" ••")[0];
+    setFilters((prev) => ({ ...prev, banco: prev.banco === bankName ? "all" : bankName }));
   };
 
   const handleCatClick = (data: any) => {
@@ -370,6 +384,19 @@ export default function Index() {
       <ArrowDown size={10} className="inline-block ml-1 text-blue-600" />
     );
   };
+
+  const truncateLabel = (text: string, limit: number = 14) => {
+    if (!text) return "";
+    return text.length > limit ? text.substring(0, limit) + "..." : text;
+  };
+
+  const hasActiveFilters =
+    filters.banco !== "all" ||
+    filters.classificacao !== "all" ||
+    filters.justificativa !== "all" ||
+    filters.fatura !== "all" ||
+    filters.dataInicio !== "" ||
+    filters.dataFim !== "";
 
   if (isCheckingAuth)
     return (
@@ -422,7 +449,7 @@ export default function Index() {
               <Button
                 type="submit"
                 disabled={isAuthLoading}
-                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest"
+                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
               >
                 {authMode === "login" ? "Entrar" : "Cadastrar"}
               </Button>
@@ -439,32 +466,32 @@ export default function Index() {
     <div className="min-h-screen bg-slate-50 pb-10">
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-4 sm:px-6 py-6 sm:py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 sm:gap-4">
             <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-white/20 shadow-sm">
               <AvatarImage src={session.user.user_metadata?.avatar_url} />
               <AvatarFallback className="bg-blue-900 font-bold">
                 {userName?.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight truncate drop-shadow-md">
+            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight truncate max-w-[120px] sm:max-w-none drop-shadow-md">
               Olá, {userName?.split(" ")[0]}
             </h1>
           </div>
-          <div className="flex gap-2">
-            <div className="relative">
+          <div className="flex gap-1 sm:gap-2">
+            <div className="relative hover:opacity-90 transition-opacity">
               <input
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer"
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-              <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10">
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4">
                 <Upload size={18} className="sm:mr-2" />
                 <span className="hidden sm:inline">Importar</span>
               </Button>
             </div>
             <Button
-              className="bg-white text-blue-700 hover:bg-blue-50 font-black h-10"
+              className="bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-800 font-black h-10 px-2 sm:px-4 transition-colors shadow-sm"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -476,7 +503,7 @@ export default function Index() {
             <Button
               variant="ghost"
               onClick={() => supabase.auth.signOut()}
-              className="text-white hover:bg-red-500/30 h-10 px-2"
+              className="text-white hover:bg-red-500/30 h-10 px-2 sm:px-4 transition-colors"
             >
               <LogOut size={20} />
             </Button>
@@ -484,12 +511,12 @@ export default function Index() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
-          <div className="flex gap-3 items-center">
+      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-4 sm:space-y-6">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2 sm:gap-3 relative overflow-hidden transition-all">
+          <div className="flex gap-2 sm:gap-3 items-center">
             <Input
-              className="flex-1 h-11 bg-slate-50 border-none font-bold text-sm focus-visible:ring-blue-500"
-              placeholder="Buscar despesa..."
+              className="flex-1 min-w-0 h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
+              placeholder="Buscar..."
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
@@ -497,21 +524,24 @@ export default function Index() {
               variant="outline"
               onClick={() => setShowFilters(!showFilters)}
               className={cn(
-                "h-11 px-4 font-bold border-none",
-                showFilters ? "bg-blue-100 text-blue-700" : "bg-slate-50 text-slate-600",
+                "h-10 sm:h-11 px-3 sm:px-4 font-bold border-none transition-colors",
+                showFilters || hasActiveFilters
+                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  : "bg-slate-50 text-slate-600 hover:bg-slate-100",
               )}
             >
-              <Filter size={16} className="sm:mr-2" /> <span className="hidden sm:inline">Filtros</span>
+              <Filter size={16} className={cn("sm:mr-2", hasActiveFilters && "fill-blue-700")} />
+              <span className="hidden sm:inline">Filtros</span>
             </Button>
           </div>
           {showFilters && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 animate-in fade-in slide-in-from-top-4">
+            <div className="pt-3 border-t border-slate-100 mt-1 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
               <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-                <SelectTrigger className="h-11 bg-slate-50 border-none font-bold text-xs">
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
                   <SelectValue placeholder="Faturas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Todas Faturas</SelectItem>
                   {unique("fatura").map((f) => (
                     <SelectItem key={f} value={f}>
                       {formatFatura(f as string)}
@@ -520,11 +550,11 @@ export default function Index() {
                 </SelectContent>
               </Select>
               <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-                <SelectTrigger className="h-11 bg-slate-50 border-none font-bold text-xs">
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
                   <SelectValue placeholder="Bancos" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="all">Todos Bancos</SelectItem>
                   {unique("banco").map((f) => (
                     <SelectItem key={f} value={f}>
                       {f}
@@ -536,11 +566,11 @@ export default function Index() {
                 value={filters.classificacao}
                 onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
               >
-                <SelectTrigger className="h-11 bg-slate-50 border-none font-bold text-xs">
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
                   <SelectValue placeholder="Categorias" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="all">Todas Categorias</SelectItem>
                   {unique("classificacao").map((f) => (
                     <SelectItem key={f} value={f}>
                       {f}
@@ -550,7 +580,7 @@ export default function Index() {
               </Select>
               <Button
                 variant="ghost"
-                className="text-red-500 font-bold h-11"
+                className="text-red-500 font-bold h-10 sm:h-11"
                 onClick={() =>
                   setFilters({
                     search: "",
@@ -570,14 +600,16 @@ export default function Index() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-blue-600 text-white rounded-3xl p-5 shadow-lg">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Total Gastos</p>
-            <h2 className="text-2xl font-black">{formatCurrency(totalSpent)}</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              Total Gastos
+            </p>
+            <h2 className="text-xl sm:text-3xl font-black">{formatCurrency(totalSpent)}</h2>
           </div>
           <div
             className={cn(
-              "text-white rounded-3xl p-5 shadow-lg cursor-pointer",
+              "text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
               budget === null ? "bg-slate-400" : totalSpent > budget ? "bg-red-500" : "bg-purple-600",
             )}
             onClick={() => {
@@ -585,170 +617,255 @@ export default function Index() {
               setBudgetDialogOpen(true);
             }}
           >
-            <p className="text-[10px] font-black uppercase opacity-90 tracking-widest mb-1">
+            <p className="text-[9px] sm:text-[10px] font-black uppercase opacity-90 tracking-widest mb-1">
               {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
             </p>
-            <h2 className="text-2xl font-black">{budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}</h2>
+            <h2 className="text-xl sm:text-3xl font-black">
+              {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
+            </h2>
           </div>
-          <div className="bg-emerald-500 text-white rounded-3xl p-5 shadow-lg">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
-            <h2 className="text-2xl font-black">{filteredAndSorted.length}</h2>
+          <div className="bg-gradient-to-br from-emerald-400 to-emerald-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
+            <h2 className="text-xl sm:text-3xl font-black">{filteredAndSorted.length}</h2>
           </div>
-          <div className="bg-slate-800 text-white rounded-3xl p-5 shadow-lg">
-            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Maior Categoria</p>
-            <h2 className="text-lg font-black truncate">{chartData.cats[0]?.name || "-"}</h2>
+          <div className="bg-slate-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 text-slate-300">
+              Maior Categoria
+            </p>
+            <h2 className="text-base sm:text-xl font-black truncate text-slate-50">{chartData.cats[0]?.name || "-"}</h2>
           </div>
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1 mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
             <TabsTrigger
               value="dashboard"
-              className="px-8 py-2 font-black rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-8 py-2 font-black rounded-xl data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700"
+              className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
-                  Divisão por Banco
-                </h3>
-                <ResponsiveContainer width="100%" height={240}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.banks}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius="50%"
-                      outerRadius="80%"
-                      paddingAngle={3}
-                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                      onClick={handleBankClick}
-                      className="cursor-pointer focus:outline-none"
-                    >
-                      {chartData.banks.map((entry, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold" }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+          <TabsContent value="dashboard" className="flex flex-col gap-6">
+            {/* 1. Divisão por Banco */}
+            <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
+              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
+                Divisão por Banco
+              </h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <PieChart>
+                  <Pie
+                    data={chartData.banks}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius="50%"
+                    outerRadius="80%"
+                    paddingAngle={3}
+                    labelLine={false}
+                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                    onClick={handleBankClick}
+                    className="cursor-pointer focus:outline-none"
+                  >
+                    {chartData.banks.map((entry, i) => (
+                      <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v)}
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
 
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
-                  Evolução Mensal
-                </h3>
-                <ResponsiveContainer width="100%" height={240}>
-                  <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: "bold" }} />
-                    <YAxis tickFormatter={(v) => `R$${v / 1000}k`} tick={{ fontSize: 10, fontWeight: "bold" }} />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Area
-                      type="monotone"
-                      dataKey="valor"
-                      stroke="#3b82f6"
-                      fill="#3b82f6"
-                      fillOpacity={0.1}
-                      strokeWidth={4}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+            {/* 2. Evolução Mensal */}
+            <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
+              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
+                Evolução Mensal
+              </h3>
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fontWeight: "bold" }}
+                    stroke="#94a3b8"
+                    axisLine={false}
+                    tickLine={false}
+                    dy={10}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `R$${v / 1000}k`}
+                    tick={{ fontSize: 10, fontWeight: "bold" }}
+                    axisLine={false}
+                    tickLine={false}
+                    stroke="#94a3b8"
+                    width={45}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v)}
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="valor"
+                    stroke="#3b82f6"
+                    fill="#3b82f6"
+                    fillOpacity={0.1}
+                    strokeWidth={3}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
 
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">Classificação</h3>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 35)}>
-                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: -10 }}>
-                    <XAxis type="number" hide />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      width={100}
-                      tick={{ fontSize: 10, fontWeight: "bold" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar
-                      dataKey="value"
-                      fill="#8b5cf6"
-                      radius={[0, 4, 4, 0]}
-                      barSize={18}
-                      onClick={handleCatClick}
-                      className="cursor-pointer"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+            {/* 3. Classificação */}
+            <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
+              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
+                Classificação
+              </h3>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 35)}>
+                <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => truncateLabel(val, 14)}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v)}
+                    cursor={{ fill: "#f1f5f9" }}
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill="#8b5cf6"
+                    radius={[0, 4, 4, 0]}
+                    barSize={18}
+                    onClick={handleCatClick}
+                    className="cursor-pointer hover:opacity-80"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
 
-              {/* TABELA DE JUSTIFICATIVAS SOLICITADA */}
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col">
-                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">
-                  Justificativas e Valores
-                </h3>
-                <div className="flex-1 overflow-auto max-h-[300px] scrollbar-hide">
-                  <Table>
-                    <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-[9px] font-black uppercase py-2">
-                          Descrição (Justificativa)
-                        </TableHead>
-                        <TableHead className="text-[9px] font-black uppercase py-2 text-right">Valor</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {chartData.justs.slice(0, 15).map((item, idx) => (
-                        <TableRow key={idx} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                          <TableCell className="py-2 text-xs font-bold text-slate-700">{item.name}</TableCell>
-                          <TableCell className="py-2 text-xs font-black text-blue-600 text-right">
-                            {formatCurrency(item.value)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
+            {/* 4. Justificativas (Voltado a Barras) */}
+            <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-sky-500"></div>
+              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
+                Top 10 Justificativas
+              </h3>
+              <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 35)}>
+                <BarChart data={chartData.justs} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => truncateLabel(val, 14)}
+                  />
+                  <Tooltip
+                    formatter={(v: number) => formatCurrency(v)}
+                    cursor={{ fill: "#f1f5f9" }}
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} barSize={18} className="hover:opacity-80" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
 
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 lg:col-span-2">
-                <h3 className="text-[10px] font-black text-slate-600 mb-4 uppercase tracking-widest">Parcelas</h3>
-                <ResponsiveContainer width="100%" height={Math.max(180, installmentsData.data.length * 40)}>
-                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: -10 }}>
-                    <XAxis type="number" hide />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      width={110}
-                      tick={{ fontSize: 10, fontWeight: "bold" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" barSize={18} />
-                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={18} />
-                  </BarChart>
-                </ResponsiveContainer>
+            {/* 5. Parcelas */}
+            <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">Parcelas</h3>
+                <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                  <SelectTrigger className="w-full sm:w-[200px] h-9 text-xs font-bold border-slate-200 bg-slate-50">
+                    <SelectValue placeholder="Filtrar..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas Compras</SelectItem>
+                    {installmentsData.options.map((o) => (
+                      <SelectItem key={o} value={o}>
+                        {o}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+              <ResponsiveContainer width="100%" height={Math.max(180, installmentsData.data.length * 40)}>
+                <BarChart
+                  data={installmentsData.data}
+                  layout="vertical"
+                  margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    width={100}
+                    tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => truncateLabel(val, 14)}
+                  />
+                  <Tooltip
+                    cursor={{ fill: "#f1f5f9" }}
+                    contentStyle={{
+                      borderRadius: "16px",
+                      border: "none",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                      fontWeight: "bold",
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
+                  <Bar dataKey="Pagas" stackId="a" fill="#10b981" barSize={18} />
+                  <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </TabsContent>
 
           <TabsContent value="tabela">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="overflow-x-auto">
                 <Table className="min-w-[900px]">
                   <TableHeader className="bg-slate-50">
@@ -759,9 +876,7 @@ export default function Index() {
                       <TableHead className="font-black text-[10px] text-right" onClick={() => requestSort("valor")}>
                         Valor {renderSortIcon("valor")}
                       </TableHead>
-                      <TableHead className="font-black text-[10px] text-center" onClick={() => requestSort("parcela")}>
-                        Parc.
-                      </TableHead>
+                      <TableHead className="font-black text-[10px] text-center">Parc.</TableHead>
                       <TableHead className="font-black text-[10px]" onClick={() => requestSort("data")}>
                         Data {renderSortIcon("data")}
                       </TableHead>
@@ -773,7 +888,7 @@ export default function Index() {
                   </TableHeader>
                   <TableBody>
                     {filteredAndSorted.map((e) => (
-                      <TableRow key={e.id} className="hover:bg-blue-50/50">
+                      <TableRow key={e.id} className="hover:bg-blue-50/50 transition-colors">
                         <TableCell className="font-bold text-xs">{e.banco}</TableCell>
                         <TableCell className="text-right font-black text-blue-600">
                           {formatCurrency(Number(e.valor))}
@@ -839,11 +954,14 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 border-none rounded-2xl"
+              className="text-4xl font-black text-center h-20 bg-blue-50 border-none rounded-2xl shadow-inner"
             />
           </div>
           <DialogFooter>
-            <Button onClick={handleSaveBudget} className="w-full bg-blue-600 font-black h-14 rounded-2xl">
+            <Button
+              onClick={handleSaveBudget}
+              className="w-full bg-blue-600 font-black h-14 rounded-2xl shadow-xl shadow-blue-100"
+            >
               Salvar
             </Button>
           </DialogFooter>
@@ -864,8 +982,23 @@ export default function Index() {
             fatura: data.fatura?.length === 7 ? `${data.fatura}-01` : data.fatura,
             user_id: session.user.id,
           };
-          if (editing) updateExpense.mutate({ id: editing.id, ...payload }, { onSuccess: () => setFormOpen(false) });
-          else addExpense.mutate(payload, { onSuccess: () => setFormOpen(false) });
+          if (editing)
+            updateExpense.mutate(
+              { id: editing.id, ...payload },
+              {
+                onSuccess: () => {
+                  toast.success("Atualizado!");
+                  setFormOpen(false);
+                },
+              },
+            );
+          else
+            addExpense.mutate(payload, {
+              onSuccess: () => {
+                toast.success("Adicionado!");
+                setFormOpen(false);
+              },
+            });
         }}
       />
 
@@ -879,7 +1012,13 @@ export default function Index() {
             <AlertDialogAction
               className="bg-red-600 font-black"
               onClick={() => {
-                if (deleting) deleteExpense.mutate(deleting, { onSuccess: () => setDeleting(null) });
+                if (deleting)
+                  deleteExpense.mutate(deleting, {
+                    onSuccess: () => {
+                      toast.success("Removido!");
+                      setDeleting(null);
+                    },
+                  });
               }}
             >
               Sim
