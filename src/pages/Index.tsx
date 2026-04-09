@@ -26,7 +26,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Download, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -47,16 +47,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const COLORS = [
-  "#7c3aed", // Roxo (Itaú ..2596)
-  "#06b6d4", // Ciano (Itaú ..6466)
-  "#10b981", // Verde (NuBank ..9531)
-  "#f59e0b",
-  "#ef4444",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-];
+const COLORS = ["#7c3aed", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 const BADGE_COLORS: Record<string, string> = {
   Estudos: "bg-blue-100 text-blue-800",
@@ -71,20 +62,8 @@ const BADGE_COLORS: Record<string, string> = {
   Carro: "bg-slate-100 text-slate-800",
 };
 
-const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-
-const formatFatura = (d: string | null) => {
-  if (!d) return "-";
-  try {
-    return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
-  } catch {
-    return d;
-  }
-};
-
 export default function Index() {
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
-
   const [filters, setFilters] = useState({
     search: "",
     banco: "all",
@@ -95,7 +74,6 @@ export default function Index() {
     dataInicio: "",
     dataFim: "",
   });
-
   const [installmentFilter, setInstallmentFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -105,12 +83,69 @@ export default function Index() {
     key: "data",
     direction: "desc",
   });
-
-  const [budget, setBudget] = useState<number>(() => {
-    const saved = localStorage.getItem("expense-budget");
-    return saved ? Number(saved) : 4000;
-  });
+  const [budget, setBudget] = useState<number>(() => Number(localStorage.getItem("expense-budget")) || 4000);
   const [tempBudget, setTempBudget] = useState(budget);
+
+  const formatCurrency = (v: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+  const formatFatura = (d: string | null) => {
+    if (!d) return "-";
+    try {
+      return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
+    } catch {
+      return d;
+    }
+  };
+
+  // --- FUNÇÃO DE EXPORTAÇÃO TEMPORÁRIA ---
+  const exportToCSV = () => {
+    if (allExpenses.length === 0) {
+      toast.error("Não há dados para exportar.");
+      return;
+    }
+
+    const headers = [
+      "ID",
+      "Banco",
+      "Cartao",
+      "Valor",
+      "Data",
+      "Despesa",
+      "Classificacao",
+      "Justificativa",
+      "Parcela",
+      "Total_Parcelas",
+      "Fatura",
+    ];
+    const rows = allExpenses.map((e) => [
+      e.id,
+      e.banco,
+      e.cartao,
+      e.valor,
+      e.data,
+      `"${e.despesa}"`,
+      e.classificacao,
+      `"${e.justificativa}"`,
+      e.parcela,
+      e.total_parcela,
+      e.fatura,
+    ]);
+
+    const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute("href", url);
+    link.setAttribute("download", `backup_despesas_${format(new Date(), "dd_MM_yyyy")}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Backup baixado com sucesso!");
+  };
 
   const filteredAndSorted = useMemo(() => {
     let result = allExpenses
@@ -127,16 +162,14 @@ export default function Index() {
         const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
-
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-
         let matchDate = true;
         if (filters.dataInicio && filters.dataFim && e.data) {
           try {
             const date = parseISO(e.data);
             matchDate = isWithinInterval(date, { start: parseISO(filters.dataInicio), end: parseISO(filters.dataFim) });
-          } catch (err) {}
+          } catch {}
         }
         return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
       });
@@ -144,10 +177,8 @@ export default function Index() {
     result.sort((a, b) => {
       const aVal = a[sortConfig.key] ?? "";
       const bVal = b[sortConfig.key] ?? "";
-      const rev = sortConfig.direction === "asc" ? 1 : -1;
-      return aVal < bVal ? -1 * rev : 1 * rev;
+      return sortConfig.direction === "asc" ? (aVal < bVal ? -1 : 1) : aVal < bVal ? 1 : -1;
     });
-
     return result;
   }, [allExpenses, filters, sortConfig]);
 
@@ -155,29 +186,22 @@ export default function Index() {
     [
       ...new Set(
         allExpenses
-          .map((e) => {
-            if (key === "fatura" && e[key]) return (e[key] as string).slice(0, 7);
-            return e[key];
-          })
+          .map((e) => (key === "fatura" && e[key] ? (e[key] as string).slice(0, 7) : e[key]))
           .filter(Boolean) as string[],
       ),
     ].sort();
-
   const cartoes =
     filters.banco === "all"
       ? unique("cartao")
       : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
   const pieData = useMemo(() => {
-    const map: Record<string, { value: number; banco: string; cartao: string }> = {};
+    const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
       const key = `${e.banco} ••${e.cartao}`;
-      if (!map[key]) {
-        map[key] = { value: 0, banco: e.banco, cartao: e.cartao };
-      }
-      map[key].value += Number(e.valor);
+      map[key] = (map[key] || 0) + Number(e.valor);
     });
-    return Object.entries(map).map(([name, data]) => ({ name, ...data }));
+    return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [filteredAndSorted]);
 
   const RADIAN = Math.PI / 180;
@@ -185,101 +209,33 @@ export default function Index() {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    if (percent < 0.04) return null;
-
-    return (
-      <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">
-        {`${(percent * 100).toFixed(0)}%`}
-      </text>
+    return percent < 0.04 ? null : (
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={11}
+        fontWeight="bold"
+      >{`${(percent * 100).toFixed(0)}%`}</text>
     );
   };
 
-  const areaData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.fatura) {
-        const fat = e.fatura.slice(0, 7);
-        map[fat] = (map[fat] || 0) + Number(e.valor);
-      }
-    });
-    return Object.entries(map)
-      .sort()
-      .map(([f, valor]) => ({
-        name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
-        valor: Math.round(valor * 100) / 100,
-      }));
-  }, [filteredAndSorted]);
-
-  const topClassificacao = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.classificacao) map[e.classificacao] = (map[e.classificacao] || 0) + Number(e.valor);
-    });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, valor]) => ({ name, valor }));
-  }, [filteredAndSorted]);
-
-  const topJustificativa = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.justificativa) map[e.justificativa] = (map[e.justificativa] || 0) + Number(e.valor);
-    });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, valor]) => ({ name, valor }));
-  }, [filteredAndSorted]);
-
-  // --- LÓGICA DO GRÁFICO DE PARCELAS ---
-  const uniqueInstallmentNames = useMemo(() => {
-    return [...new Set(filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1).map((e) => e.justificativa))].filter(
-      Boolean,
-    ) as string[];
-  }, [filteredAndSorted]);
-
   const installmentsData = useMemo(() => {
     let data = filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1);
-
-    if (installmentFilter !== "all") {
-      data = data.filter((e) => e.justificativa === installmentFilter);
-    }
-
-    return data.map((e) => {
-      const pTotal = e.total_parcela || 1;
-      const pAtual = e.parcela || 1;
-      const pagas = pAtual - 1;
-      const restantes = pTotal - pagas;
-
-      return {
-        name: `${e.justificativa || "Sem justificativa"} (${pAtual}/${pTotal})`,
-        Pagas: pagas,
-        Restantes: restantes,
-        Total: pTotal,
-      };
-    });
+    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
+    return data.map((e) => ({
+      name: `${e.justificativa || "Sem justificativa"} (${e.parcela}/${e.total_parcela})`,
+      Pagas: e.parcela - 1,
+      Restantes: e.total_parcela - e.parcela + 1,
+    }));
   }, [filteredAndSorted, installmentFilter]);
-  // -------------------------------------
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
   const uniqueBancos = new Set(filteredAndSorted.map((e) => e.banco)).size;
   const uniqueCats = new Set(filteredAndSorted.map((e) => e.classificacao)).size;
   const remainingBudget = budget - totalSpent;
-
-  const handleSort = (key: keyof Expense) => {
-    setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc" }));
-  };
-
-  const getSortIcon = (key: keyof Expense) => {
-    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-1 opacity-30 inline" />;
-    return sortConfig.direction === "asc" ? (
-      <ArrowUp size={12} className="ml-1 inline" />
-    ) : (
-      <ArrowDown size={12} className="ml-1 inline" />
-    );
-  };
 
   if (isLoading)
     return <div className="h-screen flex items-center justify-center font-bold text-slate-500">Carregando...</div>;
@@ -294,6 +250,12 @@ export default function Index() {
           </div>
           <div className="flex gap-2">
             <Button
+              className="bg-emerald-500 hover:bg-emerald-600 text-white border-none font-bold"
+              onClick={exportToCSV}
+            >
+              <Download className="mr-2 h-4 w-4" /> Exportar Backup (CSV)
+            </Button>
+            <Button
               className="bg-white/20 hover:bg-white/30 text-white border-none"
               onClick={() => {
                 setEditing(null);
@@ -302,23 +264,19 @@ export default function Index() {
             >
               <Plus className="mr-2 h-4 w-4" /> Novo Gasto
             </Button>
-            <Button className="bg-white/20 hover:bg-white/30 text-white border-none">
-              <Upload className="mr-2 h-4 w-4" /> Importar Planilha
-            </Button>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
+        {/* Barra de Filtros */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-[200px]">
-            <Input
-              className="pl-4 h-10"
-              placeholder="Buscar despesa..."
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            />
-          </div>
+          <Input
+            className="pl-4 h-10 flex-1 min-w-[200px]"
+            placeholder="Buscar despesa..."
+            value={filters.search}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+          />
           <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
             <SelectTrigger className="w-[140px] h-10">
               <SelectValue placeholder="Bancos" />
@@ -332,19 +290,6 @@ export default function Index() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
-            <SelectTrigger className="w-[140px] h-10">
-              <SelectValue placeholder="Cartões" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos cartões</SelectItem>
-              {cartoes.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={filters.classificacao} onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}>
             <SelectTrigger className="w-[140px] h-10">
               <SelectValue placeholder="Categorias" />
@@ -354,19 +299,6 @@ export default function Index() {
               {unique("classificacao").map((c) => (
                 <SelectItem key={c} value={c}>
                   {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.justificativa} onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}>
-            <SelectTrigger className="w-[140px] h-10">
-              <SelectValue placeholder="Justificativa" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {unique("justificativa").map((j) => (
-                <SelectItem key={j} value={j}>
-                  {j}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -386,22 +318,18 @@ export default function Index() {
           </Select>
         </div>
 
+        {/* Indicadores */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+          <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm">
             <p className="text-sm font-medium opacity-90">Total em Gastos</p>
             <h2 className="text-2xl font-bold mt-1">{formatCurrency(totalSpent)}</h2>
           </div>
-
           <div
             className={cn(
-              "text-white rounded-xl p-5 shadow-sm flex flex-col justify-center cursor-pointer hover:brightness-110 transition-all",
+              "text-white rounded-xl p-5 shadow-sm cursor-pointer hover:brightness-110",
               remainingBudget < 0 ? "bg-red-500" : "bg-[#8b5cf6]",
             )}
-            onClick={() => {
-              setTempBudget(budget);
-              setBudgetDialogOpen(true);
-            }}
-            title="Clique para ajustar o teto de gastos"
+            onClick={() => setBudgetDialogOpen(true)}
           >
             <div className="flex justify-between items-center opacity-90">
               <p className="text-sm font-medium">Saldo do Teto</p>
@@ -409,24 +337,21 @@ export default function Index() {
             </div>
             <h2 className="text-2xl font-bold mt-1">{formatCurrency(remainingBudget)}</h2>
           </div>
-
-          <div className="bg-[#10b981] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+          <div className="bg-[#10b981] text-white rounded-xl p-5 shadow-sm">
             <p className="text-sm font-medium opacity-90">Transações</p>
             <h2 className="text-2xl font-bold mt-1">{filteredAndSorted.length}</h2>
           </div>
-
-          <div className="bg-[#14b8a6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+          <div className="bg-[#14b8a6] text-white rounded-xl p-5 shadow-sm">
             <p className="text-sm font-medium opacity-90">Bancos</p>
             <h2 className="text-2xl font-bold mt-1">{uniqueBancos}</h2>
           </div>
-
-          <div className="bg-[#f97316] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
+          <div className="bg-[#f97316] text-white rounded-xl p-5 shadow-sm">
             <p className="text-sm font-medium opacity-90">Categorias</p>
             <h2 className="text-2xl font-bold mt-1">{uniqueCats}</h2>
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="w-full">
+        <Tabs defaultValue="dashboard">
           <TabsList className="bg-transparent space-x-2 p-0 mb-6">
             <TabsTrigger
               value="dashboard"
@@ -459,24 +384,9 @@ export default function Index() {
                       paddingAngle={2}
                       labelLine={false}
                       label={renderCustomizedLabel}
-                      onClick={(entry) => {
-                        const isFiltered = filters.banco === entry.banco && filters.cartao === entry.cartao;
-                        setFilters((f) => ({
-                          ...f,
-                          banco: isFiltered ? "all" : entry.banco,
-                          cartao: isFiltered ? "all" : entry.cartao,
-                        }));
-                        toast.info(isFiltered ? "Filtro removido." : `Filtrando por: ${entry.name}`);
-                      }}
-                      className="cursor-pointer focus:outline-none"
                     >
                       {pieData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={COLORS[i % COLORS.length]}
-                          stroke="none"
-                          className="hover:opacity-80 transition-opacity outline-none"
-                        />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
@@ -484,65 +394,8 @@ export default function Index() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Evolução por Fatura</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={areaData}>
-                    <defs>
-                      <linearGradient id="colorPurple" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-xs text-slate-500" />
-                    <YAxis
-                      tickFormatter={(v) => `R$${v / 1000}k`}
-                      axisLine={false}
-                      tickLine={false}
-                      className="text-xs text-slate-500"
-                    />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <RankedList data={topClassificacao} title="Top 10 por Categoria" />
-              </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
-              </div>
-            </div>
-
-            {/* --- GRÁFICO DE PARCELAS --- */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <h3 className="text-sm font-semibold text-slate-600 uppercase">Acompanhamento de Parcelas</h3>
-                <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
-                  <SelectTrigger className="w-[240px] h-9 text-xs">
-                    <SelectValue placeholder="Filtrar justificativa..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todas as Parceladas</SelectItem>
-                    {uniqueInstallmentNames.map((name) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {installmentsData.length === 0 ? (
-                <div className="text-center text-slate-400 py-10 text-sm">
-                  Nenhuma despesa parcelada encontrada para os filtros atuais.
-                </div>
-              ) : (
+                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Acompanhamento de Parcelas</h3>
                 <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.length * 40)}>
                   <BarChart
                     data={installmentsData}
@@ -565,7 +418,7 @@ export default function Index() {
                     <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              )}
+              </div>
             </div>
           </TabsContent>
 
@@ -573,124 +426,55 @@ export default function Index() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50 hover:bg-slate-50">
-                    <TableHead
-                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
-                      onClick={() => handleSort("banco")}
-                    >
-                      Banco {getSortIcon("banco")}
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
-                      onClick={() => handleSort("cartao")}
-                    >
-                      Cartão {getSortIcon("cartao")}
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px] text-right"
-                      onClick={() => handleSort("valor")}
-                    >
-                      Valores e Faltantes {getSortIcon("valor")}
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
-                      onClick={() => handleSort("data")}
-                    >
-                      Data {getSortIcon("data")}
-                    </TableHead>
-                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Parcela</TableHead>
-                    <TableHead
-                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
-                      onClick={() => handleSort("despesa")}
-                    >
-                      Despesa {getSortIcon("despesa")}
-                    </TableHead>
-                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Categoria</TableHead>
-                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Fatura</TableHead>
+                  <TableRow className="bg-slate-50">
+                    <TableHead>Banco</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Parcela</TableHead>
+                    <TableHead>Despesa</TableHead>
+                    <TableHead>Categoria</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSorted.map((e) => {
-                    const vParcela = Number(e.valor);
-                    const pTotal = e.total_parcela || 1;
-                    const pAtual = e.parcela || 1;
-                    const vTotal = vParcela * pTotal;
-                    const faltantes = pTotal - pAtual + 1;
-                    const vFalta = vParcela * faltantes;
-
-                    return (
-                      <TableRow key={e.id}>
-                        <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
-                        <TableCell className="text-slate-400 text-xs font-mono">••{e.cartao}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="font-black text-blue-600 text-sm mb-1">{formatCurrency(vParcela)}</div>
-                          {pTotal > 1 && (
-                            <div className="flex flex-col items-end gap-1">
-                              <span className="text-[9px] text-slate-500 font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">
-                                Total: {formatCurrency(vTotal)}
-                              </span>
-                              {faltantes > 0 && (
-                                <span className="text-[9px] text-orange-600 font-bold uppercase bg-orange-50 px-1.5 py-0.5 rounded">
-                                  Falta: {formatCurrency(vFalta)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-slate-500 font-medium">
-                          {format(parseISO(e.data), "dd/MM/yyyy")}
-                        </TableCell>
-                        <TableCell className="text-slate-700 font-bold text-xs">
-                          {pTotal > 1 ? `${pAtual}/${pTotal}` : "1/1 (À vista)"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-slate-800">{e.despesa}</span>
-                            <span className="text-[10px] text-slate-400 italic max-w-[150px] truncate">
-                              {e.justificativa}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={cn(
-                              BADGE_COLORS[e.classificacao] || "bg-slate-100 text-slate-800",
-                              "font-bold text-[10px] border-none uppercase shadow-none",
-                            )}
+                  {filteredAndSorted.map((e) => (
+                    <TableRow key={e.id}>
+                      <TableCell className="font-bold">{e.banco}</TableCell>
+                      <TableCell className="text-right font-black text-blue-600">
+                        {formatCurrency(Number(e.valor))}
+                      </TableCell>
+                      <TableCell>{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="font-bold text-xs">
+                        {e.parcela}/{e.total_parcela}
+                      </TableCell>
+                      <TableCell className="font-bold">{e.despesa}</TableCell>
+                      <TableCell>
+                        <Badge className="font-bold text-[10px] border-none uppercase">{e.classificacao}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setEditing(e);
+                              setFormOpen(true);
+                            }}
                           >
-                            {e.classificacao}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-slate-500 text-xs font-bold uppercase">
-                          {formatFatura(e.fatura)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-500 hover:bg-blue-50"
-                              onClick={() => {
-                                setEditing(e);
-                                setFormOpen(true);
-                              }}
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:bg-red-50"
-                              onClick={() => setDeleting(e.id)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500"
+                            onClick={() => setDeleting(e.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -728,78 +512,7 @@ export default function Index() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação excluirá permanentemente o gasto do banco de dados.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="font-bold">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-red-600 font-bold"
-              onClick={() => {
-                if (deleting) {
-                  deleteExpense.mutate(deleting, {
-                    onSuccess: () => {
-                      toast.success("Gasto excluído!");
-                      setDeleting(null);
-                    },
-                    onError: () => toast.error("Erro ao excluir o gasto."),
-                  });
-                }
-              }}
-            >
-              Excluir Gasto
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <ExpenseForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        initialData={editing}
-        onSubmit={(data) => {
-          const faturaSegura = data.fatura && data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura;
-
-          const payloadLimpo = {
-            banco: data.banco || "",
-            cartao: data.cartao || "",
-            valor: Number(data.valor) || 0,
-            data: data.data || new Date().toISOString().split("T")[0],
-            despesa: data.despesa || "",
-            classificacao: data.classificacao || "",
-            justificativa: data.justificativa || "",
-            parcela: Number(data.parcela) || 1,
-            total_parcela: Number(data.total_parcela) || 1,
-            fatura: faturaSegura || null,
-          };
-
-          if (editing) {
-            updateExpense.mutate(
-              { id: editing.id, ...payloadLimpo },
-              {
-                onSuccess: () => toast.success("Gasto atualizado!"),
-                onError: (error) => {
-                  console.error(error);
-                  toast.error("Erro ao atualizar o gasto.");
-                },
-              },
-            );
-          } else {
-            addExpense.mutate(payloadLimpo, {
-              onSuccess: () => toast.success("Gasto adicionado!"),
-              onError: (error) => {
-                console.error(error);
-                toast.error("Erro ao adicionar o gasto.");
-              },
-            });
-          }
-        }}
-      />
+      <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={(data) => {}} />
     </div>
   );
 }
