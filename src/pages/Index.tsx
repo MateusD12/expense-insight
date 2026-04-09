@@ -98,7 +98,6 @@ export default function Index() {
   const [budget, setBudget] = useState<number>(() => Number(localStorage.getItem("expense-budget")) || 4000);
   const [tempBudget, setTempBudget] = useState(budget);
 
-  // Importação
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
@@ -162,11 +161,12 @@ export default function Index() {
           e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
           e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
         const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-        return matchSearch && matchBanco && matchCat && matchJust && matchFatura;
+        return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura;
       });
     result.sort((a, b) => {
       const aVal = a[sortConfig.key] ?? "";
@@ -185,14 +185,19 @@ export default function Index() {
           .filter(Boolean) as string[],
       ),
     ].sort();
+  const cartoes =
+    filters.banco === "all"
+      ? unique("cartao")
+      : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
   const pieData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { value: number; banco: string; cartao: string }> = {};
     filteredAndSorted.forEach((e) => {
       const key = `${e.banco} ••${e.cartao}`;
-      map[key] = (map[key] || 0) + Number(e.valor);
+      if (!map[key]) map[key] = { value: 0, banco: e.banco, cartao: e.cartao };
+      map[key].value += Number(e.valor);
     });
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).map(([name, d]) => ({ name, ...d }));
   }, [filteredAndSorted]);
 
   const RADIAN = Math.PI / 180;
@@ -224,6 +229,28 @@ export default function Index() {
     return Object.entries(map)
       .sort()
       .map(([f, valor]) => ({ name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }), valor }));
+  }, [filteredAndSorted]);
+
+  const topClassificacao = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAndSorted.forEach((e) => {
+      if (e.classificacao) map[e.classificacao] = (map[e.classificacao] || 0) + Number(e.valor);
+    });
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([name, valor]) => ({ name, valor }));
+  }, [filteredAndSorted]);
+
+  const topJustificativa = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAndSorted.forEach((e) => {
+      if (e.justificativa) map[e.justificativa] = (map[e.justificativa] || 0) + Number(e.valor);
+    });
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([name, valor]) => ({ name, valor }));
   }, [filteredAndSorted]);
 
   const installmentsData = useMemo(() => {
@@ -293,7 +320,6 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* Filtros */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <Input
             className="pl-4 h-10 flex-1 min-w-[200px]"
@@ -301,7 +327,7 @@ export default function Index() {
             value={filters.search}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
-          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
+          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
             <SelectTrigger className="w-[140px] h-10">
               <SelectValue placeholder="Bancos" />
             </SelectTrigger>
@@ -310,6 +336,19 @@ export default function Index() {
               {unique("banco").map((b) => (
                 <SelectItem key={b} value={b}>
                   {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
+            <SelectTrigger className="w-[140px] h-10">
+              <SelectValue placeholder="Cartões" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos cartões</SelectItem>
+              {cartoes.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -342,7 +381,6 @@ export default function Index() {
           </Select>
         </div>
 
-        {/* Indicadores */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm">
             <p className="text-sm font-medium opacity-90">Total em Gastos</p>
@@ -375,7 +413,7 @@ export default function Index() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard">
+        <Tabs defaultValue="dashboard" className="w-full">
           <TabsList className="bg-transparent space-x-2 p-0 mb-6">
             <TabsTrigger
               value="dashboard"
@@ -408,9 +446,22 @@ export default function Index() {
                       paddingAngle={2}
                       labelLine={false}
                       label={renderCustomizedLabel}
+                      onClick={(entry) => {
+                        const isFiltered = filters.banco === entry.banco && filters.cartao === entry.cartao;
+                        setFilters((f) => ({
+                          ...f,
+                          banco: isFiltered ? "all" : entry.banco,
+                          cartao: isFiltered ? "all" : entry.cartao,
+                        }));
+                      }}
+                      className="cursor-pointer focus:outline-none"
                     >
                       {pieData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
+                        <Cell
+                          key={i}
+                          fill={COLORS[i % COLORS.length]}
+                          className="hover:opacity-80 transition-opacity"
+                        />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
@@ -440,6 +491,15 @@ export default function Index() {
                     <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <RankedList data={topClassificacao} title="Top 10 por Categoria" />
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
               </div>
             </div>
 
