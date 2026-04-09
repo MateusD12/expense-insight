@@ -1,59 +1,61 @@
 
 
-## Plano: Aplicativo de Controle de Gastos do Cartão de Crédito
+## Plano: Redesign Visual — Dashboard e Tabela em Página Única
 
-### Visão Geral
-Construir um sistema completo com tabela de gastos e dashboard com gráficos, usando Supabase para persistência. Sem autenticação inicialmente (dados públicos), podendo ser adicionada depois.
+Baseado nas capturas de tela de referência, o layout atual (duas rotas separadas) será unificado em uma única página com abas, header colorido, cards de resumo e gráficos estilizados.
 
-### Etapa 1 — Banco de Dados (Supabase Migration)
-Criar tabela `expenses` com as colunas:
-- `id` (uuid, PK)
-- `banco` (text) — ex: NuBank, Itaú
-- `cartao` (text) — ex: 9531, 6466, 2596
-- `valor` (numeric)
-- `data` (date)
-- `parcela` (integer, default 0)
-- `total_parcela` (integer, default 0)
-- `despesa` (text) — descrição da transação
-- `justificativa` (text) — nome simplificado
-- `classificacao` (text) — ex: Estudos, Alimentação, Carro
-- `fatura` (date) — mês de fechamento
-- `created_at` (timestamptz)
+### Mudanças Principais
 
-RLS desabilitado inicialmente (sem auth). Inserir os ~49 registros da planilha.
+**1. Página única com abas (substituir rotas separadas)**
+- Remover rotas `/planilha` e `/dashboard` — tudo fica em `/` em uma única página `Index.tsx`
+- Usar `Tabs` do shadcn para alternar entre "Dashboard" e "Tabela"
+- Remover `AppLayout.tsx` com navegação por rotas
 
-### Etapa 2 — Estrutura do App e Navegação
-- Layout com barra superior simples: abas **Planilha** e **Dashboard**
-- Duas páginas: `/planilha` e `/dashboard`
-- Rota `/` redireciona para `/planilha`
+**2. Header estilizado**
+- Banner azul/gradiente com título "💳 Controle de Gastos" e subtítulo
+- Botões "Novo Gasto" e "Importar Planilha" dentro do header
 
-### Etapa 3 — Página Planilha
-- Tabela com todas as colunas, com formatação de valores (R$) e datas
-- Botão para adicionar novo gasto (modal/dialog com formulário)
-- Edição inline ou via modal
-- Exclusão com confirmação
-- Ordenação por colunas
+**3. Filtros globais (abaixo do header)**
+- Barra de busca por texto (despesa)
+- Selects: Banco, Cartão, Categoria, Fatura
+- Filtros aplicam tanto na aba Dashboard quanto na Tabela
 
-### Etapa 4 — Página Dashboard
-Quatro gráficos usando Recharts (já disponível no projeto):
+**4. Cards de resumo (4 cards coloridos)**
+- **Total em Gastos** (azul) — soma dos valores filtrados
+- **Transações** (verde) — contagem de registros
+- **Bancos** (verde) — quantidade de bancos distintos
+- **Categorias** (laranja) — quantidade de classificações distintas
 
-1. **Gráfico de Linhas** — Total gasto por fatura (mês), eixo X = mês da fatura, eixo Y = valor total
-2. **Gráfico de Pizza** — Distribuição por Banco, com sublinha do Cartão e valores em porcentagem
-3. **Top 10 por Classificação** — Barras horizontais com soma dos valores
-4. **Top 10 por Justificativa** — Barras horizontais com soma dos valores
+**5. Aba Dashboard — gráficos redesenhados**
+- **Gastos por Banco/Cartão**: Donut chart (rosca) com legenda "Banco ••cartão"
+- **Evolução por Fatura**: Area chart com gradiente (roxo/lilás)
+- **Top 10 por Categoria**: Lista ranqueada com barras coloridas horizontais e valores à direita (não Recharts BarChart — custom styled bars)
+- **Top 10 por Justificativa**: Mesmo estilo de lista ranqueada
 
-### Etapa 5 — Filtros Dinâmicos (Dashboard)
-Quatro selects no topo do dashboard que filtram todos os gráficos simultaneamente:
-- **Fatura** (mês)
-- **Banco**
-- **Cartão**
-- **Classificação**
+**6. Aba Tabela — tabela de gastos**
+- Mesma tabela atual com todas as colunas
+- Valores em verde (R$), classificação com badges coloridos
+- Ações de editar/excluir mantidas
 
-Cada filtro com opção "Todos". Filtros em cascata quando possível (cartões filtrados pelo banco selecionado).
+### Arquivos Afetados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/pages/Index.tsx` | **Reescrever** — página principal com tabs, header, cards, filtros |
+| `src/pages/Planilha.tsx` | **Remover** — conteúdo migrado para Index |
+| `src/pages/Dashboard.tsx` | **Remover** — conteúdo migrado para Index |
+| `src/components/AppLayout.tsx` | **Simplificar** — remover nav, manter shell mínimo |
+| `src/components/DashboardFilters.tsx` | **Adaptar** — adicionar campo de busca |
+| `src/components/SummaryCards.tsx` | **Criar** — 4 cards coloridos |
+| `src/components/RankedList.tsx` | **Criar** — componente de lista ranqueada com barras coloridas |
+| `src/App.tsx` | **Simplificar** — rota única `/` |
 
 ### Detalhes Técnicos
-- **DB**: 1 migration SQL para criar tabela + seed dos dados
-- **Arquivos novos**: `src/pages/Planilha.tsx`, `src/pages/Dashboard.tsx`, `src/components/ExpenseForm.tsx`, `src/components/DashboardFilters.tsx`, `src/components/charts/` (4 componentes de gráfico)
-- **Hooks**: `useExpenses` para CRUD via Supabase client
-- **Libs existentes**: Recharts, shadcn/ui (Table, Dialog, Select, Button, Card)
+
+- Donut chart: Recharts `PieChart` com `innerRadius` para efeito rosca
+- Area chart: Recharts `AreaChart` com `linearGradient` fill
+- Top 10 lists: Componente custom HTML/CSS com barras de progresso coloridas (não Recharts)
+- Cards de resumo: Grid 2x2 com cores de fundo via Tailwind (`bg-blue-500`, `bg-green-500`, `bg-orange-500`)
+- Badges de classificação na tabela com cores mapeadas por categoria
+- Cartão formatado como `••••XXXX` na legenda do donut
 
