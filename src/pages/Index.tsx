@@ -18,7 +18,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   PieChart,
@@ -512,6 +519,7 @@ export default function Index() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Ajustar Teto Mensal</DialogTitle>
+            <DialogDescription>Defina o valor máximo que você deseja gastar este mês.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -537,23 +545,69 @@ export default function Index() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Isso excluirá permanentemente o gasto do seu controle.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleting) {
+                  deleteExpense.mutate(deleting, {
+                    onSuccess: () => {
+                      toast.success("Gasto excluído com sucesso!");
+                      setDeleting(null);
+                    },
+                    onError: (error) => {
+                      console.error("Erro ao excluir:", error);
+                      toast.error("Ocorreu um erro ao excluir o gasto.");
+                    },
+                  });
+                }
+              }}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ExpenseForm
         open={formOpen}
         onOpenChange={setFormOpen}
         initialData={editing}
         onSubmit={(data) => {
+          // Conversão de segurança para garantir que não mandamos strings no lugar de números
+          const payload = {
+            ...data,
+            valor: Number(data.valor),
+            parcela: Number(data.parcela) || 0,
+            total_parcela: Number(data.total_parcela) || 0,
+          };
+
           if (editing) {
             updateExpense.mutate(
-              { id: editing.id, ...data },
+              { id: editing.id, ...payload },
               {
                 onSuccess: () => toast.success("Gasto atualizado!"),
-                onError: () => toast.error("Erro ao atualizar o gasto."),
+                onError: (error) => {
+                  console.error("Supabase Error [UPDATE]:", error);
+                  toast.error("Erro ao atualizar o gasto. Verifique o console.");
+                },
               },
             );
           } else {
-            addExpense.mutate(data, {
+            addExpense.mutate(payload, {
               onSuccess: () => toast.success("Gasto adicionado!"),
-              onError: () => toast.error("Erro ao adicionar o gasto."),
+              onError: (error) => {
+                console.error("Supabase Error [INSERT]:", error);
+                toast.error("Erro ao adicionar o gasto. Verifique o console.");
+              },
             });
           }
         }}
