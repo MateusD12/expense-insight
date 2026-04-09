@@ -594,7 +594,8 @@ export default function Index() {
             justificativa: data.justificativa || "",
             parcela: Number(data.parcela) || 0,
             total_parcela: Number(data.total_parcela) || 0,
-            fatura: data.fatura || "", 
+            // A CORREÇÃO ESTÁ AQUI: garantindo o formato YYYY-MM-DD
+            fatura: data.fatura && data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura || "", 
           };
 
           if (editing) {
