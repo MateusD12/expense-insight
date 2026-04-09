@@ -54,6 +54,20 @@ import { cn } from "@/lib/utils";
 
 const COLORS = ["#7c3aed", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
 
+const BADGE_COLORS: Record<string, string> = {
+  Estudos: "bg-blue-100 text-blue-800 border-blue-200",
+  Saúde: "bg-red-100 text-red-800 border-red-200",
+  Lazer: "bg-purple-100 text-purple-800 border-purple-200",
+  Alimentação: "bg-orange-100 text-orange-800 border-orange-200",
+  Compras: "bg-pink-100 text-pink-800 border-pink-200",
+  Transporte: "bg-green-100 text-green-800 border-green-200",
+  Assinatura: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  Presente: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  Casa: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  Carro: "bg-cyan-100 text-cyan-800 border-cyan-200",
+  "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
+};
+
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -423,7 +437,7 @@ export default function Index() {
             <Button
               onClick={loginWithGoogle}
               variant="outline"
-              className="w-full h-12 font-bold flex gap-3 text-slate-700"
+              className="w-full h-12 font-bold flex gap-3 text-slate-700 hover:bg-slate-50"
             >
               <Chrome size={20} className="text-blue-500" /> Entrar com Google
             </Button>
@@ -442,7 +456,7 @@ export default function Index() {
                 value={authEmail}
                 onChange={(e) => setAuthEmail(e.target.value)}
                 required
-                className="h-12"
+                className="h-12 border-slate-200 focus-visible:ring-blue-500"
               />
               <Input
                 type="password"
@@ -450,12 +464,12 @@ export default function Index() {
                 value={authPassword}
                 onChange={(e) => setAuthPassword(e.target.value)}
                 required
-                className="h-12"
+                className="h-12 border-slate-200 focus-visible:ring-blue-500"
               />
               <Button
                 type="submit"
                 disabled={isAuthLoading}
-                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest"
+                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
               >
                 {authMode === "login" ? "Entrar" : "Cadastrar"}
               </Button>
@@ -473,31 +487,31 @@ export default function Index() {
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-4 sm:px-6 py-6 sm:py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
-            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-white/20">
+            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-white/20 shadow-sm">
               <AvatarImage src={session.user.user_metadata?.avatar_url} />
               <AvatarFallback className="bg-blue-900 font-bold">
                 {userName?.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight truncate max-w-[120px] sm:max-w-none">
+            <h1 className="text-lg sm:text-xl font-black uppercase tracking-tight truncate max-w-[120px] sm:max-w-none drop-shadow-md">
               Olá, {userName?.split(" ")[0]}
             </h1>
           </div>
           <div className="flex gap-1 sm:gap-2">
-            <div className="relative">
+            <div className="relative hover:opacity-90 transition-opacity">
               <input
                 type="file"
                 accept=".csv"
                 onChange={handleFileUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
               />
-              <Button variant="outline" className="bg-white/10 text-white font-bold h-10 px-2 sm:px-4">
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4">
                 <Upload size={18} className="sm:mr-2" />
                 <span className="hidden sm:inline">Importar</span>
               </Button>
             </div>
             <Button
-              className="bg-white text-blue-700 font-black h-10 px-2 sm:px-4"
+              className="bg-white text-blue-700 hover:bg-blue-50 hover:text-blue-800 font-black h-10 px-2 sm:px-4 transition-colors shadow-sm"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -509,7 +523,7 @@ export default function Index() {
             <Button
               variant="ghost"
               onClick={() => supabase.auth.signOut()}
-              className="text-white hover:bg-red-500/20 h-10 px-2 sm:px-4"
+              className="text-white hover:bg-red-500/30 h-10 px-2 sm:px-4 transition-colors"
             >
               <LogOut size={20} />
             </Button>
@@ -518,20 +532,22 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3">
           <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
             <Input
-              className="col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm"
+              className="col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
               placeholder="Buscar despesa ou justificativa..."
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
             <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
+              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 font-bold text-xs sm:text-sm focus:ring-blue-500">
                 <SelectValue placeholder="Faturas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas Faturas</SelectItem>
+                <SelectItem value="all" className="font-bold text-blue-600">
+                  Todas Faturas
+                </SelectItem>
                 {unique("fatura").map((f) => (
                   <SelectItem key={f} value={f}>
                     {formatFatura(f as string)}
@@ -540,11 +556,13 @@ export default function Index() {
               </SelectContent>
             </Select>
             <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
+              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 font-bold text-xs sm:text-sm focus:ring-blue-500">
                 <SelectValue placeholder="Bancos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos Bancos</SelectItem>
+                <SelectItem value="all" className="font-bold text-blue-600">
+                  Todos Bancos
+                </SelectItem>
                 {unique("banco").map((f) => (
                   <SelectItem key={f} value={f}>
                     {f}
@@ -556,11 +574,13 @@ export default function Index() {
               value={filters.classificacao}
               onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
             >
-              <SelectTrigger className="w-full md:w-[160px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
+              <SelectTrigger className="w-full md:w-[160px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 font-bold text-xs sm:text-sm focus:ring-blue-500">
                 <SelectValue placeholder="Categorias" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas Categorias</SelectItem>
+                <SelectItem value="all" className="font-bold text-blue-600">
+                  Todas Categorias
+                </SelectItem>
                 {unique("classificacao").map((f) => (
                   <SelectItem key={f} value={f}>
                     {f}
@@ -574,11 +594,13 @@ export default function Index() {
               value={filters.justificativa}
               onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
             >
-              <SelectTrigger className="col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs sm:text-sm">
+              <SelectTrigger className="col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200 font-bold text-xs sm:text-sm focus:ring-blue-500">
                 <SelectValue placeholder="Justificativas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas Justificativas</SelectItem>
+                <SelectItem value="all" className="font-bold text-blue-600">
+                  Todas Justif.
+                </SelectItem>
                 {unique("justificativa").map((f) => (
                   <SelectItem key={f} value={f}>
                     {f}
@@ -586,7 +608,7 @@ export default function Index() {
                 ))}
               </SelectContent>
             </Select>
-            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
               <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
                 De:
               </span>
@@ -597,7 +619,7 @@ export default function Index() {
                 onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
               />
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-100 overflow-hidden">
+            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-2 sm:px-3 rounded-xl h-10 sm:h-11 border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
               <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
                 Até:
               </span>
@@ -610,7 +632,7 @@ export default function Index() {
             </div>
             <Button
               variant="ghost"
-              className="col-span-2 md:col-auto text-red-500 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0"
+              className="col-span-2 md:col-auto text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0 transition-colors"
               onClick={() =>
                 setFilters({
                   search: "",
@@ -630,8 +652,8 @@ export default function Index() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-blue-600 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
-            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+          <div className="bg-blue-600 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-blue-500">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate text-blue-100">
               Total Gastos
             </p>
             <h2 className="text-xl sm:text-2xl font-black truncate">{formatCurrency(totalSpent)}</h2>
@@ -639,12 +661,12 @@ export default function Index() {
 
           <div
             className={cn(
-              "text-white rounded-2xl p-4 sm:p-5 shadow-xl cursor-pointer transition-all",
+              "text-white rounded-2xl p-4 sm:p-5 shadow-lg cursor-pointer transition-all border",
               budget === null
-                ? "bg-slate-400 hover:bg-slate-500"
+                ? "bg-slate-400 hover:bg-slate-500 border-slate-300"
                 : totalSpent > budget
-                  ? "bg-red-500"
-                  : "bg-purple-600",
+                  ? "bg-red-500 border-red-400"
+                  : "bg-purple-600 border-purple-500",
             )}
             onClick={() => {
               setTempBudget(budget || 0);
@@ -652,32 +674,32 @@ export default function Index() {
             }}
           >
             <div className="flex justify-between items-center">
-              <p className="text-[9px] sm:text-[10px] font-black uppercase opacity-80 tracking-widest truncate mr-1">
+              <p className="text-[9px] sm:text-[10px] font-black uppercase opacity-90 tracking-widest truncate mr-1">
                 {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
-              <Target size={12} className="shrink-0" />
+              <Target size={12} className="shrink-0 opacity-80" />
             </div>
             <h2 className="text-xl sm:text-2xl font-black mt-1 truncate">
               {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
 
-          <div className="bg-emerald-500 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
-            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+          <div className="bg-emerald-500 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-emerald-400">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate text-emerald-100">
               Transações
             </p>
             <h2 className="text-xl sm:text-2xl font-black">{filteredAndSorted.length}</h2>
           </div>
 
-          <div className="bg-slate-800 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
-            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
+          <div className="bg-slate-800 text-white rounded-2xl p-4 sm:p-5 shadow-lg border border-slate-700">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate text-slate-300">
               Maior Categoria
             </p>
-            <h2 className="text-sm sm:text-xl font-black truncate">
+            <h2 className="text-sm sm:text-xl font-black truncate text-slate-50">
               {chartData.cats.length > 0 ? chartData.cats[0].name : "-"}
             </h2>
             {chartData.cats.length > 0 && (
-              <p className="text-[10px] sm:text-xs text-slate-300 font-bold truncate">
+              <p className="text-[10px] sm:text-xs text-blue-400 font-black truncate mt-1">
                 {formatCurrency(chartData.cats[0].value)}
               </p>
             )}
@@ -685,7 +707,7 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="tabela">
-          <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl w-full sm:w-auto flex">
+          <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl w-full sm:w-auto flex border border-slate-200 shadow-sm">
             <TabsTrigger value="dashboard" className="px-4 sm:px-8 font-bold rounded-lg flex-1 sm:flex-none">
               Dashboard
             </TabsTrigger>
@@ -696,10 +718,12 @@ export default function Index() {
 
           <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
             <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-4 sm:mb-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Divisão por Banco</h3>
-                  <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Divisão por Banco</h3>
+                  <span className="text-[9px] text-blue-400 uppercase font-black bg-blue-50 px-2 py-1 rounded-md">
+                    Clique p/ Filtrar
+                  </span>
                 </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -715,7 +739,7 @@ export default function Index() {
                       labelLine={false}
                       label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                       onClick={handleBankClick}
-                      className="cursor-pointer"
+                      className="cursor-pointer focus:outline-none"
                     >
                       {chartData.banks.map((entry, i) => (
                         <Cell
@@ -733,40 +757,50 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-4 sm:mb-6 uppercase tracking-widest">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 className="text-[10px] font-black text-slate-500 mb-4 sm:mb-6 uppercase tracking-widest">
                   Evolução Mensal
                 </h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={chartData.temporal}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: "bold" }} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fontWeight: "bold" }} stroke="#94a3b8" />
                     <YAxis
                       tickFormatter={(v) => `R$${v / 1000}k`}
                       tick={{ fontSize: 10 }}
                       axisLine={false}
                       tickLine={false}
                       width={45}
+                      stroke="#94a3b8"
                     />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "none",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Area
                       type="monotone"
                       dataKey="valor"
-                      stroke="#8b5cf6"
-                      fill="#8b5cf6"
-                      fillOpacity={0.1}
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.15}
                       strokeWidth={3}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
                 <div className="flex justify-between items-center mb-4 sm:mb-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                     Classificação de Gastos
                   </h3>
-                  <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
+                  <span className="text-[9px] text-blue-400 uppercase font-black bg-blue-50 px-2 py-1 rounded-md">
+                    Clique p/ Filtrar
+                  </span>
                 </div>
                 <ResponsiveContainer width="100%" height={Math.max(250, chartData.cats.length * 30)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0 }}>
@@ -778,8 +812,17 @@ export default function Index() {
                       tick={{ fontSize: 10, fontWeight: "bold" }}
                       axisLine={false}
                       tickLine={false}
+                      stroke="#64748b"
                     />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
+                      cursor={{ fill: "#f8fafc" }}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "none",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Bar
                       dataKey="value"
                       fill="#8b5cf6"
@@ -790,7 +833,7 @@ export default function Index() {
                       {chartData.cats.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={filters.classificacao === entry.name ? "#6d28d9" : "#8b5cf6"}
+                          fill={filters.classificacao === entry.name ? "#4f46e5" : "#818cf8"}
                         />
                       ))}
                     </Bar>
@@ -798,8 +841,8 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-4 sm:mb-6 uppercase tracking-widest">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 className="text-[10px] font-black text-slate-500 mb-4 sm:mb-6 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
                 <ResponsiveContainer width="100%" height={Math.max(250, chartData.justs.length * 30)}>
@@ -812,24 +855,40 @@ export default function Index() {
                       tick={{ fontSize: 10, fontWeight: "bold" }}
                       axisLine={false}
                       tickLine={false}
+                      stroke="#64748b"
                     />
-                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="value" fill="#06b6d4" radius={[0, 4, 4, 0]} />
+                    <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
+                      cursor={{ fill: "#f8fafc" }}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "none",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="#0ea5e9"
+                      radius={[0, 4, 4, 0]}
+                      className="hover:opacity-80 transition-opacity"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 md:col-span-2">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6">
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
                     Acompanhamento de Parcelas
                   </h3>
                   <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
-                    <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs font-bold">
+                    <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs font-bold border-slate-200 bg-slate-50">
                       <SelectValue placeholder="Filtrar..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as Compras</SelectItem>
+                      <SelectItem value="all" className="font-bold text-blue-600">
+                        Todas as Compras
+                      </SelectItem>
                       {installmentsData.options.map((o) => (
                         <SelectItem key={o} value={o}>
                           {o}
@@ -848,11 +907,31 @@ export default function Index() {
                       tick={{ fontSize: 10, fontWeight: "bold" }}
                       axisLine={false}
                       tickLine={false}
+                      stroke="#64748b"
                     />
-                    <Tooltip />
+                    <Tooltip
+                      cursor={{ fill: "#f8fafc" }}
+                      contentStyle={{
+                        borderRadius: "12px",
+                        border: "none",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                      }}
+                    />
                     <Legend wrapperStyle={{ fontSize: "11px" }} />
-                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
-                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                    <Bar
+                      dataKey="Pagas"
+                      stackId="a"
+                      fill="#10b981"
+                      radius={[0, 0, 0, 0]}
+                      className="hover:opacity-80 transition-opacity"
+                    />
+                    <Bar
+                      dataKey="Restantes"
+                      stackId="a"
+                      fill="#f59e0b"
+                      radius={[0, 4, 4, 0]}
+                      className="hover:opacity-80 transition-opacity"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -860,49 +939,49 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="tabela">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <Table className="min-w-[900px]">
-                  <TableHeader className="bg-slate-100/50">
+                  <TableHeader className="bg-blue-50/50">
                     <TableRow className="border-b border-slate-200">
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors py-4"
                         onClick={() => requestSort("banco")}
                       >
                         Banco {renderSortIcon("banco")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors text-right py-4"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors text-right py-4"
                         onClick={() => requestSort("valor")}
                       >
                         Valor {renderSortIcon("valor")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors text-center py-4"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors text-center py-4"
                         onClick={() => requestSort("parcela")}
                       >
                         Parcela {renderSortIcon("parcela")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors py-4"
                         onClick={() => requestSort("data")}
                       >
                         Data {renderSortIcon("data")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[200px]"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors py-4 min-w-[200px]"
                         onClick={() => requestSort("despesa")}
                       >
                         Despesa {renderSortIcon("despesa")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[140px]"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors py-4 min-w-[140px]"
                         onClick={() => requestSort("classificacao")}
                       >
                         Categoria {renderSortIcon("classificacao")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[200px]"
+                        className="font-black text-[10px] text-blue-900 uppercase tracking-widest cursor-pointer hover:bg-blue-100/50 transition-colors py-4 min-w-[200px]"
                         onClick={() => requestSort("justificativa")}
                       >
                         Justificativa {renderSortIcon("justificativa")}
@@ -911,58 +990,72 @@ export default function Index() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSorted.map((e) => (
-                      <TableRow key={e.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
-                        <TableCell className="font-bold text-slate-700">
-                          {e.banco}{" "}
-                          <span className="text-slate-400 text-xs font-normal ml-1">{e.cartao && `••${e.cartao}`}</span>
-                        </TableCell>
-                        <TableCell className="text-right font-black text-blue-600 text-sm">
-                          {formatCurrency(Number(e.valor))}
-                        </TableCell>
-                        <TableCell className="text-center font-black text-xs text-slate-400">
-                          {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
-                        </TableCell>
-                        <TableCell className="text-slate-500 text-xs font-bold">
-                          {format(parseISO(e.data), "dd/MM/yy")}
-                        </TableCell>
-                        <TableCell className="font-bold text-slate-800 text-sm">{e.despesa}</TableCell>
-                        <TableCell>
-                          <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
-                            {e.classificacao || "Sem Cat"}
-                          </span>
-                        </TableCell>
-                        <TableCell
-                          className="text-xs text-slate-500 font-medium truncate max-w-[200px]"
-                          title={e.justificativa}
+                    {filteredAndSorted.map((e) => {
+                      const badgeClass =
+                        BADGE_COLORS[e.classificacao || ""] || "bg-slate-100 text-slate-600 border-slate-200";
+                      return (
+                        <TableRow
+                          key={e.id}
+                          className="hover:bg-blue-50/40 transition-colors border-b border-slate-100 group"
                         >
-                          {e.justificativa || "-"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-500 hover:bg-blue-50"
-                              onClick={() => {
-                                setEditing(e);
-                                setFormOpen(true);
-                              }}
+                          <TableCell className="font-bold text-slate-700">
+                            {e.banco}{" "}
+                            <span className="text-slate-400 text-xs font-normal ml-1">
+                              {e.cartao && `••${e.cartao}`}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-black text-blue-600 text-sm">
+                            {formatCurrency(Number(e.valor))}
+                          </TableCell>
+                          <TableCell className="text-center font-black text-xs text-slate-400">
+                            {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
+                          </TableCell>
+                          <TableCell className="text-slate-500 text-xs font-bold">
+                            {format(parseISO(e.data), "dd/MM/yy")}
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-800 text-sm">{e.despesa}</TableCell>
+                          <TableCell>
+                            <span
+                              className={cn(
+                                "px-2.5 py-1 rounded-md text-[9px] font-black uppercase tracking-widest border shadow-sm inline-block",
+                                badgeClass,
+                              )}
                             >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:bg-red-50"
-                              onClick={() => setDeleting(e.id)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                              {e.classificacao || "Sem Cat"}
+                            </span>
+                          </TableCell>
+                          <TableCell
+                            className="text-xs text-slate-600 font-medium truncate max-w-[200px]"
+                            title={e.justificativa}
+                          >
+                            {e.justificativa || "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-500 hover:bg-blue-100"
+                                onClick={() => {
+                                  setEditing(e);
+                                  setFormOpen(true);
+                                }}
+                              >
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:bg-red-100"
+                                onClick={() => setDeleting(e.id)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -974,7 +1067,7 @@ export default function Index() {
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
         <DialogContent aria-describedby={undefined} className="rounded-3xl border-none w-[90%] sm:w-full">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-widest text-center">
+            <DialogTitle className="font-black uppercase tracking-widest text-center text-blue-900">
               Ajustar Teto de Gastos
             </DialogTitle>
           </DialogHeader>
@@ -986,13 +1079,13 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-slate-50 border-none rounded-2xl focus-visible:ring-purple-500"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
             />
           </div>
           <DialogFooter>
             <Button
               onClick={handleSaveBudget}
-              className="w-full bg-blue-600 font-black h-14 rounded-2xl text-lg shadow-xl shadow-blue-100"
+              className="w-full bg-blue-600 hover:bg-blue-700 transition-colors font-black h-14 rounded-2xl text-lg shadow-xl shadow-blue-100"
             >
               Salvar no Perfil
             </Button>
@@ -1003,14 +1096,14 @@ export default function Index() {
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent aria-describedby={undefined} className="sm:max-w-[600px] w-[95%] rounded-3xl border-none">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase text-xl">Conferir Importação</DialogTitle>
+            <DialogTitle className="font-black uppercase text-xl text-blue-900">Conferir Importação</DialogTitle>
           </DialogHeader>
-          <div className="max-h-[300px] overflow-auto border rounded-xl">
+          <div className="max-h-[300px] overflow-auto border border-slate-200 rounded-xl shadow-inner bg-slate-50/50">
             <Table>
               <TableBody>
                 {importPreview.slice(0, 5).map((item, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell className="font-bold text-xs sm:text-sm">{item.despesa}</TableCell>
+                  <TableRow key={idx} className="border-b border-slate-100">
+                    <TableCell className="font-bold text-xs sm:text-sm text-slate-700">{item.despesa}</TableCell>
                     <TableCell className="text-right font-black text-emerald-600 text-xs sm:text-sm">
                       {formatCurrency(Number(item.valor))}
                     </TableCell>
@@ -1022,7 +1115,7 @@ export default function Index() {
           <DialogFooter className="mt-4">
             <Button
               onClick={confirmImport}
-              className="bg-emerald-600 font-black w-full h-12 rounded-xl text-md shadow-lg shadow-emerald-50"
+              className="bg-emerald-600 hover:bg-emerald-700 transition-colors font-black w-full h-12 rounded-xl text-md shadow-lg shadow-emerald-100"
             >
               Confirmar {importPreview.length} Itens
             </Button>
@@ -1079,12 +1172,14 @@ export default function Index() {
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <AlertDialogContent aria-describedby={undefined} className="rounded-3xl border-none w-[90%] sm:w-full">
           <AlertDialogHeader>
-            <AlertDialogTitle className="font-black text-xl">Excluir este registro?</AlertDialogTitle>
+            <AlertDialogTitle className="font-black text-xl text-slate-800">Excluir este registro?</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-            <AlertDialogCancel className="font-bold rounded-xl h-11 m-0">Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="font-bold rounded-xl h-11 m-0 hover:bg-slate-100 border-slate-200">
+              Cancelar
+            </AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 font-black rounded-xl h-11 m-0"
+              className="bg-red-600 hover:bg-red-700 transition-colors font-black rounded-xl h-11 m-0 shadow-lg shadow-red-100"
               onClick={() => {
                 if (deleting)
                   deleteExpense.mutate(deleting, {
