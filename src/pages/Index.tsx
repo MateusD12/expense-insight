@@ -177,29 +177,34 @@ export default function Index() {
     reader.readAsText(file);
   };
 
+  // MOTOR DE IMPORTAÇÃO BLINDADO
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
+        // 1. Conversão segura de data (DD/MM/YYYY para YYYY-MM-DD)
         let dataSegura = item.data;
         if (dataSegura && dataSegura.includes("/")) {
           const p = dataSegura.split("/");
           if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
         }
 
+        // 2. Tratamento para fatura vazia não bugar o banco
         let faturaSegura = null;
         if (item.fatura && item.fatura.trim() !== "") {
           faturaSegura = item.fatura.length === 7 ? `${item.fatura}-01` : item.fatura;
         }
 
+        // 3. Montando o Payload APENAS com as colunas que o banco aceita
+        // Isso ignora IDs antigos, Total_Parcelas (com 's') ou outras colunas de lixo do CSV
         const payload = {
-          banco: item.banco || "Desconhecido",
-          cartao: item.cartao || "",
+          banco: item.banco?.trim() || "Desconhecido",
+          cartao: item.cartao?.trim() || "",
           valor: Number(item.valor) || 0,
           data: dataSegura || new Date().toISOString().split("T")[0],
-          despesa: item.despesa || "Importado",
-          classificacao: item.classificacao || "Outros",
-          justificativa: item.justificativa || "",
+          despesa: item.despesa?.trim() || "Importado",
+          classificacao: item.classificacao?.trim() || "Outros",
+          justificativa: item.justificativa?.trim() || "",
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
           fatura: faturaSegura,
@@ -212,8 +217,8 @@ export default function Index() {
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
-      console.error(err);
-      toast.error("Erro na importação. Verifique os dados.");
+      console.error("Erro detalhado da importação:", err);
+      toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
 
