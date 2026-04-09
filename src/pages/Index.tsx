@@ -1036,13 +1036,26 @@ export default function Index() {
         initialData={editing}
         onSubmit={(data) => {
           if (!session?.user?.id) return;
+
+          let faturaSegura = data.fatura || null;
+          if (faturaSegura && faturaSegura.length === 7) {
+            faturaSegura = `${faturaSegura}-01`;
+          }
+
           const payload = {
-            ...data,
+            banco: data.banco,
+            cartao: data.cartao,
             valor: Number(data.valor),
-            parcela: Number(data.parcela),
-            total_parcela: Number(data.total_parcela),
+            data: data.data,
+            despesa: data.despesa,
+            classificacao: data.classificacao,
+            justificativa: data.justificativa,
+            parcela: Number(data.parcela) || 1,
+            total_parcela: Number(data.total_parcela) || 1,
+            fatura: faturaSegura,
             user_id: session.user.id,
           };
+
           if (editing)
             updateExpense.mutate(
               { id: editing.id, ...payload },
