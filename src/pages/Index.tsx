@@ -69,6 +69,20 @@ const BADGE_COLORS: Record<string, string> = {
   "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
 };
 
+const HEX_COLORS: Record<string, string> = {
+  Estudos: "#1e40af",
+  Saúde: "#991b1b",
+  Lazer: "#6b21a8",
+  Alimentação: "#9a3412",
+  Compras: "#9d174d",
+  Transporte: "#166534",
+  Assinatura: "#3730a3",
+  Presente: "#854d0e",
+  Casa: "#065f46",
+  Carro: "#155e75",
+  "Vida Pessoal": "#9f1239",
+};
+
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -766,6 +780,15 @@ export default function Index() {
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
+            <svg width="0" height="0">
+              <defs>
+                <linearGradient id="colorEvolucao" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+            </svg>
+
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
               <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
@@ -855,9 +878,8 @@ export default function Index() {
                       type="monotone"
                       dataKey="valor"
                       stroke="#3b82f6"
-                      fill="#3b82f6"
-                      fillOpacity={0.1}
-                      strokeWidth={3}
+                      fill="url(#colorEvolucao)"
+                      strokeWidth={4}
                       activeDot={{ r: 6, fill: "#1e3a8a", stroke: "#fff", strokeWidth: 2 }}
                     />
                   </AreaChart>
@@ -874,17 +896,17 @@ export default function Index() {
                     Clique p/ Filtrar
                   </span>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
+                <ResponsiveContainer width="100%" height={Math.max(260, chartData.cats.length * 35)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={95}
+                      width={100}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 12)}
+                      tickFormatter={(val) => truncateText(val, 15)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -920,17 +942,17 @@ export default function Index() {
                 <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 40)}>
+                <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 35)}>
                   <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={130}
+                      width={180}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 18)}
+                      tickFormatter={(val) => truncateText(val, 25)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -975,17 +997,17 @@ export default function Index() {
                     </SelectContent>
                   </Select>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, installmentsData.data.length * 45)}>
+                <ResponsiveContainer width="100%" height={Math.max(260, installmentsData.data.length * 45)}>
                   <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={130}
+                      width={180}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 18)}
+                      tickFormatter={(val) => truncateText(val, 25)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
