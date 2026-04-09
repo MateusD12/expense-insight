@@ -159,18 +159,20 @@ export default function Index() {
           return;
         }
 
+        // Apenas ponto e vírgula como separador
         const headers = lines[0]
           .toLowerCase()
           .replace(/^\ufeff/, "")
           .replace(/"/g, "")
-          .split(/[;,]/)
+          .split(";")
           .map((h) => h.trim());
 
         const parsed = lines.slice(1).map((line) => {
-          const values = line.split(/[;,]/);
+          const values = line.split(";");
           const obj: any = {};
           headers.forEach((h, i) => {
-            let v = values[i]?.replace(/"/g, "").trim();
+            // Limpa aspas extras que vêm do Excel
+            let v = values[i]?.replace(/^"|"$/g, "").trim();
             if (h.includes("valor") && v) v = v.replace(",", ".");
             obj[h] = v;
           });
@@ -188,7 +190,6 @@ export default function Index() {
     event.target.value = "";
   };
 
-  // Conversor Seguro de Variáveis
   const safeString = (val: any) => (val !== null && val !== undefined ? String(val).trim() : "");
 
   const confirmImport = async () => {
