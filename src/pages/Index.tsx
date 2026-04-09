@@ -140,11 +140,11 @@ export default function Index() {
   const fetchProfile = async (uid: string) => {
     const { data } = await supabase
       .from("profiles" as any)
-      .select("budget")
+      .select("*")
       .eq("id", uid)
       .single();
-    if (data && data.budget !== null) {
-      setBudget(Number(data.budget));
+    if (data && (data as any).budget !== undefined) {
+      setBudget(Number((data as any).budget));
     } else {
       setBudget(null);
     }
@@ -338,11 +338,13 @@ export default function Index() {
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
     const temporal: Record<string, number> = {};
+    const cats: Record<string, number> = {}; // Re-adicionado para os cards
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
       const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
+      cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
 
       if (e.fatura) {
         const f = e.fatura.slice(0, 7);
@@ -352,6 +354,9 @@ export default function Index() {
 
     return {
       banks: Object.entries(banks).map(([name, value]) => ({ name, value })),
+      cats: Object.entries(cats)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, value]) => ({ name, value })),
       temporal: Object.entries(temporal)
         .sort()
         .map(([f, valor]) => ({
@@ -707,7 +712,7 @@ export default function Index() {
                 {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
+            <h2 className="text-xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
               {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
@@ -1068,7 +1073,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-purple-500 shadow-inner"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
             />
           </div>
           <DialogFooter>
