@@ -68,6 +68,20 @@ const BADGE_COLORS: Record<string, string> = {
   "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
 };
 
+const HEX_COLORS: Record<string, string> = {
+  Estudos: "#1e40af",
+  Saúde: "#991b1b",
+  Lazer: "#6b21a8",
+  Alimentação: "#9a3412",
+  Compras: "#9d174d",
+  Transporte: "#166534",
+  Assinatura: "#3730a3",
+  Presente: "#854d0e",
+  Casa: "#065f46",
+  Carro: "#155e75",
+  "Vida Pessoal": "#9f1239",
+};
+
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -410,11 +424,11 @@ export default function Index() {
   };
 
   const renderSortIcon = (key: string) => {
-    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="opacity-30 inline-block ml-1" />;
+    if (sortConfig.key !== key) return <ArrowUpDown size={10} className="opacity-30 inline-block ml-1" />;
     return sortConfig.direction === "asc" ? (
-      <ArrowUp size={12} className="inline-block ml-1 text-blue-600" />
+      <ArrowUp size={10} className="inline-block ml-1 text-blue-600" />
     ) : (
-      <ArrowDown size={12} className="inline-block ml-1 text-blue-600" />
+      <ArrowDown size={10} className="inline-block ml-1 text-blue-600" />
     );
   };
 
@@ -531,11 +545,11 @@ export default function Index() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-3 sm:p-5 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-3 relative overflow-hidden">
-          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
+      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-4 sm:space-y-6">
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2 sm:gap-3 relative overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
             <Input
-              className="col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
+              className="col-span-1 sm:col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
               placeholder="Buscar despesa ou justificativa..."
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
@@ -589,12 +603,12 @@ export default function Index() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3 items-center">
             <Select
               value={filters.justificativa}
               onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
             >
-              <SelectTrigger className="col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
+              <SelectTrigger className="col-span-1 sm:col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
                 <SelectValue placeholder="Justificativas" />
               </SelectTrigger>
               <SelectContent>
@@ -632,7 +646,7 @@ export default function Index() {
             </div>
             <Button
               variant="ghost"
-              className="col-span-2 md:col-auto text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0 transition-colors rounded-xl"
+              className="col-span-1 sm:col-span-2 md:col-auto text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0 transition-colors rounded-xl"
               onClick={() =>
                 setFilters({
                   search: "",
@@ -651,20 +665,20 @@ export default function Index() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-3xl p-5 shadow-lg border-none relative overflow-hidden">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <div className="absolute top-0 right-0 -mr-4 -mt-4 opacity-20">
               <Wallet size={80} />
             </div>
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
               Total Gastos
             </p>
-            <h2 className="text-2xl sm:text-3xl font-black truncate drop-shadow-sm">{formatCurrency(totalSpent)}</h2>
+            <h2 className="text-xl sm:text-3xl font-black truncate drop-shadow-sm">{formatCurrency(totalSpent)}</h2>
           </div>
 
           <div
             className={cn(
-              "text-white rounded-3xl p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
+              "text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
               budget === null
                 ? "bg-slate-400"
                 : totalSpent > budget
@@ -684,27 +698,27 @@ export default function Index() {
                 {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
+            <h2 className="text-xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
               {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
 
-          <div className="bg-gradient-to-br from-emerald-400 to-emerald-500 text-white rounded-3xl p-5 shadow-lg border-none relative overflow-hidden">
+          <div className="bg-gradient-to-br from-emerald-400 to-emerald-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
               Transações
             </p>
-            <h2 className="text-2xl sm:text-3xl font-black drop-shadow-sm">{filteredAndSorted.length}</h2>
+            <h2 className="text-xl sm:text-3xl font-black drop-shadow-sm">{filteredAndSorted.length}</h2>
           </div>
 
-          <div className="bg-slate-800 text-white rounded-3xl p-5 shadow-lg border-none relative overflow-hidden">
+          <div className="bg-slate-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate text-slate-300">
               Maior Categoria
             </p>
-            <h2 className="text-lg sm:text-xl font-black truncate text-slate-50 mt-1">
+            <h2 className="text-base sm:text-xl font-black truncate text-slate-50 mt-1">
               {chartData.cats.length > 0 ? chartData.cats[0].name : "-"}
             </h2>
             {chartData.cats.length > 0 && (
-              <p className="text-[11px] sm:text-xs text-blue-400 font-black truncate mt-0.5">
+              <p className="text-[10px] sm:text-xs text-blue-400 font-black truncate mt-0.5">
                 {formatCurrency(chartData.cats[0].value)}
               </p>
             )}
@@ -712,16 +726,16 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1.5 mb-6 rounded-2xl w-full sm:w-auto flex shadow-sm border border-slate-100">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full flex shadow-sm border border-slate-100 overflow-x-auto">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
@@ -737,12 +751,14 @@ export default function Index() {
               </defs>
             </svg>
 
-            <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
-              <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1">
-                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Divisão por Banco</h3>
-                  <span className="text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1 px-2">
+                  <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
+                    Divisão por Banco
+                  </h3>
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
@@ -754,8 +770,8 @@ export default function Index() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={65}
-                      outerRadius={95}
+                      innerRadius="50%"
+                      outerRadius="80%"
                       paddingAngle={3}
                       labelLine={false}
                       label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
@@ -781,22 +797,22 @@ export default function Index() {
                         fontWeight: "bold",
                       }}
                     />
-                    <Legend wrapperStyle={{ fontSize: "12px", fontWeight: "bold", paddingTop: "10px" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-                <h3 className="text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 uppercase tracking-widest">
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Evolução Mensal
                 </h3>
                 <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis
                       dataKey="name"
-                      tick={{ fontSize: 11, fontWeight: "bold" }}
+                      tick={{ fontSize: 10, fontWeight: "bold" }}
                       stroke="#94a3b8"
                       axisLine={false}
                       tickLine={false}
@@ -804,10 +820,11 @@ export default function Index() {
                     />
                     <YAxis
                       tickFormatter={(v) => `R$${v / 1000}k`}
-                      tick={{ fontSize: 11, fontWeight: "bold" }}
+                      tick={{ fontSize: 10, fontWeight: "bold" }}
                       axisLine={false}
                       tickLine={false}
                       stroke="#94a3b8"
+                      width={45}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -831,11 +848,13 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
-                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1">
-                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">Classificação</h3>
-                  <span className="text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1 px-2">
+                  <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
+                    Classificação
+                  </h3>
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
@@ -845,8 +864,8 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={90}
-                      tick={{ fontSize: 11, fontWeight: "bold", fill: "#475569" }}
+                      width={85}
+                      tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -869,7 +888,9 @@ export default function Index() {
                       {chartData.cats.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={filters.classificacao === entry.name ? "#5b21b6" : "#7c3aed"}
+                          fill={HEX_COLORS[entry.name] || "#cbd5e1"}
+                          stroke={filters.classificacao === entry.name ? "#000" : "none"}
+                          strokeWidth={filters.classificacao === entry.name ? 2 : 0}
                         />
                       ))}
                     </Bar>
@@ -877,9 +898,9 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-sky-500"></div>
-                <h3 className="text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 uppercase tracking-widest">
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
                 <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 35)}>
@@ -888,8 +909,8 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={110}
-                      tick={{ fontSize: 11, fontWeight: "bold", fill: "#475569" }}
+                      width={85}
+                      tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -913,10 +934,10 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              <div className="bg-white p-5 sm:p-7 rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden md:col-span-2">
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1">
-                  <h3 className="text-xs font-black text-slate-600 uppercase tracking-widest">
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
+                  <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
                     Acompanhamento de Parcelas
                   </h3>
                   <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
@@ -941,8 +962,8 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={160}
-                      tick={{ fontSize: 11, fontWeight: "bold", fill: "#475569" }}
+                      width={110}
+                      tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -955,7 +976,7 @@ export default function Index() {
                         fontWeight: "bold",
                       }}
                     />
-                    <Legend wrapperStyle={{ fontSize: "12px", fontWeight: "bold", paddingTop: "10px" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
                     <Bar
                       dataKey="Pagas"
                       stackId="a"
@@ -977,54 +998,54 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="tabela">
-            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden pt-2">
+            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden pt-2">
               <div className="overflow-x-auto">
                 <Table className="min-w-[900px]">
                   <TableHeader className="bg-slate-50 border-b border-slate-100">
                     <TableRow className="border-none">
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-5"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-4 px-4"
                         onClick={() => requestSort("banco")}
                       >
                         Banco {renderSortIcon("banco")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors text-right py-5"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors text-right py-4 px-4"
                         onClick={() => requestSort("valor")}
                       >
                         Valor {renderSortIcon("valor")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors text-center py-5"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors text-center py-4 px-4"
                         onClick={() => requestSort("parcela")}
                       >
                         Parcela {renderSortIcon("parcela")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-5"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-4 px-4"
                         onClick={() => requestSort("data")}
                       >
                         Data {renderSortIcon("data")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-5 min-w-[200px]"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-4 px-4 min-w-[200px]"
                         onClick={() => requestSort("despesa")}
                       >
                         Despesa {renderSortIcon("despesa")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-5 min-w-[140px]"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-4 px-4 min-w-[140px]"
                         onClick={() => requestSort("classificacao")}
                       >
                         Categoria {renderSortIcon("classificacao")}
                       </TableHead>
                       <TableHead
-                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-5 min-w-[200px]"
+                        className="font-black text-[10px] text-slate-500 uppercase tracking-widest cursor-pointer hover:text-blue-600 transition-colors py-4 px-4 min-w-[200px]"
                         onClick={() => requestSort("justificativa")}
                       >
                         Justificativa {renderSortIcon("justificativa")}
                       </TableHead>
-                      <TableHead className="py-5" />
+                      <TableHead className="py-4 px-4" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1036,23 +1057,23 @@ export default function Index() {
                           key={e.id}
                           className="hover:bg-blue-50/50 transition-colors border-b border-slate-50 group"
                         >
-                          <TableCell className="font-bold text-slate-700 py-4">
+                          <TableCell className="font-bold text-slate-700 py-3 px-4">
                             {e.banco}{" "}
                             <span className="text-slate-400 text-xs font-normal ml-1">
                               {e.cartao && `••${e.cartao}`}
                             </span>
                           </TableCell>
-                          <TableCell className="text-right font-black text-blue-600 text-sm py-4">
+                          <TableCell className="text-right font-black text-blue-600 text-sm py-3 px-4">
                             {formatCurrency(Number(e.valor))}
                           </TableCell>
-                          <TableCell className="text-center font-black text-xs text-slate-400 py-4">
+                          <TableCell className="text-center font-black text-xs text-slate-400 py-3 px-4">
                             {e.total_parcela > 1 ? `${e.parcela}/${e.total_parcela}` : "-"}
                           </TableCell>
-                          <TableCell className="text-slate-500 text-xs font-bold py-4">
+                          <TableCell className="text-slate-500 text-xs font-bold py-3 px-4">
                             {format(parseISO(e.data), "dd/MM/yy")}
                           </TableCell>
-                          <TableCell className="font-bold text-slate-800 text-sm py-4">{e.despesa}</TableCell>
-                          <TableCell className="py-4">
+                          <TableCell className="font-bold text-slate-800 text-sm py-3 px-4">{e.despesa}</TableCell>
+                          <TableCell className="py-3 px-4">
                             <span
                               className={cn(
                                 "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm inline-block",
@@ -1063,13 +1084,13 @@ export default function Index() {
                             </span>
                           </TableCell>
                           <TableCell
-                            className="text-xs text-slate-600 font-medium truncate max-w-[200px] py-4"
+                            className="text-xs text-slate-600 font-medium truncate max-w-[200px] py-3 px-4"
                             title={e.justificativa}
                           >
                             {e.justificativa || "-"}
                           </TableCell>
-                          <TableCell className="py-4">
-                            <div className="flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <TableCell className="py-3 px-4">
+                            <div className="flex gap-1 justify-end opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
                               <Button
                                 variant="ghost"
                                 size="icon"
