@@ -702,7 +702,7 @@ export default function Index() {
 
           <div
             className={cn(
-              "text-white rounded-2xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
+              "text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
               budget === null
                 ? "bg-slate-400"
                 : totalSpent > budget
@@ -869,6 +869,58 @@ export default function Index() {
                       activeDot={{ r: 6, fill: "#1e3a8a", stroke: "#fff", strokeWidth: 2 }}
                     />
                   </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* GRÁFICO DE CLASSIFICAÇÃO (ESTILO PADRÃO) */}
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
+                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1 px-2">
+                  <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
+                    Classificação
+                  </h3>
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                    Clique p/ Filtrar
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
+                  <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={95}
+                      tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(val) => truncateText(val, 12)}
+                    />
+                    <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
+                      cursor={{ fill: "#f1f5f9" }}
+                      contentStyle={{
+                        borderRadius: "16px",
+                        border: "none",
+                        boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
+                        fontWeight: "bold",
+                      }}
+                    />
+                    <Bar
+                      dataKey="value"
+                      fill="#8b5cf6"
+                      radius={[0, 6, 6, 0]}
+                      barSize={24}
+                      onClick={handleCatClick}
+                      className="cursor-pointer hover:opacity-80 transition-all"
+                    >
+                      {chartData.cats.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={filters.classificacao === entry.name ? "#6d28d9" : "#8b5cf6"}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
 
@@ -1127,7 +1179,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-purple-500 shadow-inner"
             />
           </div>
           <DialogFooter>
