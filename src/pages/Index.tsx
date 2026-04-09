@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
+import { SummaryCards } from "@/components/SummaryCards";
 import { RankedList } from "@/components/RankedList";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -19,21 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Search,
-  Target,
-  Wallet,
-  Filter,
-  CreditCard,
-  Building2,
-  Tags,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
-} from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -45,15 +32,48 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
 } from "recharts";
 import { format, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const COLORS = ["#2563eb", "#db2777", "#059669", "#d97706", "#7c3aed", "#0891b2"];
+// Cores baseadas na sua imagem original
+const COLORS = [
+  "#7c3aed", // Roxo (Itaú ..2596)
+  "#06b6d4", // Ciano (Itaú ..6466)
+  "#10b981", // Verde (NuBank ..9531)
+  "#f59e0b",
+  "#ef4444",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
+
+const BADGE_COLORS: Record<string, string> = {
+  Estudos: "bg-blue-100 text-blue-800",
+  Saúde: "bg-red-100 text-red-800",
+  Lazer: "bg-purple-100 text-purple-800",
+  Alimentação: "bg-orange-100 text-orange-800",
+  Compras: "bg-pink-100 text-pink-800",
+  Transporte: "bg-green-100 text-green-800",
+  Assinatura: "bg-indigo-100 text-indigo-800",
+  Presente: "bg-yellow-100 text-yellow-800",
+  Casa: "bg-emerald-100 text-emerald-800",
+  Carro: "bg-slate-100 text-slate-800",
+};
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+const formatFatura = (d: string | null) => {
+  if (!d) return "-";
+  try {
+    return format(new Date(d + "T12:00:00"), "MMM/yy", { locale: ptBR });
+  } catch {
+    return d;
+  }
+};
 
 export default function Index() {
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
@@ -63,6 +83,7 @@ export default function Index() {
     banco: "all",
     cartao: "all",
     classificacao: "all",
+    fatura: "all",
     dataInicio: "",
     dataFim: "",
   });
@@ -76,19 +97,23 @@ export default function Index() {
     direction: "desc",
   });
 
+  // Teto de Gastos
   const [budget, setBudget] = useState<number>(() => {
     const saved = localStorage.getItem("expense-budget");
-    return saved ? Number(saved) : 3000;
+    return saved ? Number(saved) : 4000;
   });
   const [tempBudget, setTempBudget] = useState(budget);
 
+  // Filtragem e Ordenação
   const filteredAndSorted = useMemo(() => {
     let result = allExpenses.filter((e) => {
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+      const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+      const matchFatura = filters.fatura === "all" || e.fatura === filters.fatura;
 
       let matchDate = true;
       if (filters.dataInicio && filters.dataFim && e.data) {
@@ -98,7 +123,8 @@ export default function Index() {
           end: parseISO(filters.dataFim),
         });
       }
-      return matchSearch && matchBanco && matchCat && matchDate;
+
+      return matchSearch && matchBanco && matchCartao && matchCat && matchFatura && matchDate;
     });
 
     result.sort((a, b) => {
@@ -111,16 +137,19 @@ export default function Index() {
     return result;
   }, [allExpenses, filters, sortConfig]);
 
-  const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
-  const uniqueBancos = useMemo(() => new Set(filteredAndSorted.map((e) => e.banco)).size, [filteredAndSorted]);
-  const uniqueCats = useMemo(() => new Set(filteredAndSorted.map((e) => e.classificacao)).size, [filteredAndSorted]);
-  const remainingBudget = budget - totalSpent;
+  const unique = (key: keyof Expense) =>
+    [...new Set(allExpenses.map((e) => e[key]).filter(Boolean) as string[])].sort();
+  const cartoes =
+    filters.banco === "all"
+      ? unique("cartao")
+      : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
-  // Gráficos
+  // Dados para os Gráficos (Baseado nas imagens)
   const pieData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
-      map[e.banco] = (map[e.banco] || 0) + Number(e.valor);
+      const key = `${e.banco} ••${e.cartao}`;
+      map[key] = (map[key] || 0) + Number(e.valor);
     });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [filteredAndSorted]);
@@ -132,253 +161,295 @@ export default function Index() {
     });
     return Object.entries(map)
       .sort()
+      .map(([f, valor]) => ({
+        name: format(new Date(f + "T12:00:00"), "MMM/yy", { locale: ptBR }),
+        valor: Math.round(valor * 100) / 100,
+      }));
+  }, [filteredAndSorted]);
+
+  const topClassificacao = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAndSorted.forEach((e) => {
+      if (e.classificacao) map[e.classificacao] = (map[e.classificacao] || 0) + Number(e.valor);
+    });
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
       .map(([name, valor]) => ({ name, valor }));
   }, [filteredAndSorted]);
+
+  const topJustificativa = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredAndSorted.forEach((e) => {
+      if (e.justificativa) map[e.justificativa] = (map[e.justificativa] || 0) + Number(e.valor);
+    });
+    return Object.entries(map)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10)
+      .map(([name, valor]) => ({ name, valor }));
+  }, [filteredAndSorted]);
+
+  const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
+  const remainingBudget = budget - totalSpent;
 
   const handleSort = (key: keyof Expense) => {
     setSortConfig((prev) => ({ key, direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc" }));
   };
 
   const getSortIcon = (key: keyof Expense) => {
-    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-1 opacity-30" />;
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="ml-1 opacity-30 inline" />;
     return sortConfig.direction === "asc" ? (
-      <ArrowUp size={12} className="ml-1" />
+      <ArrowUp size={12} className="ml-1 inline" />
     ) : (
-      <ArrowDown size={12} className="ml-1" />
+      <ArrowDown size={12} className="ml-1 inline" />
     );
   };
 
   if (isLoading)
-    return <div className="h-screen flex items-center justify-center font-bold text-blue-600">CARREGANDO...</div>;
+    return <div className="h-screen flex items-center justify-center font-bold text-slate-500">Carregando...</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      <div className="bg-blue-600 text-white px-6 py-10 shadow-lg">
+      {/* HEADER ORIGINAL (Gradient Roxo/Azul) */}
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-8">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-black tracking-tighter flex items-center gap-2 italic">
-              <Wallet size={32} /> CONTROLE DE GASTOS
-            </h1>
-            <p className="text-blue-100 text-xs font-bold opacity-70">SISTEMA DE GESTÃO v2.0</p>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">💳 Controle de Gastos</h1>
+            <p className="text-blue-100 text-sm mt-1">Acompanhamento mensal dos gastos no cartão de crédito</p>
           </div>
-          <Button
-            className="bg-white text-blue-600 hover:bg-blue-50 font-black px-6"
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus className="mr-2 h-5 w-5" /> NOVO GASTO
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="bg-white/20 hover:bg-white/30 text-white border-none"
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Novo Gasto
+            </Button>
+            <Button className="bg-white/20 hover:bg-white/30 text-white border-none">
+              <Upload className="mr-2 h-4 w-4" /> Importar Planilha
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 -mt-10 space-y-6">
-        {/* GRID DE INDICADORES UNIFICADO */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2 rounded-2xl bg-white p-6 shadow-xl flex flex-col justify-center border-b-4 border-blue-500">
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Consumido</p>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tighter">{formatCurrency(totalSpent)}</h2>
+      <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
+        {/* BARRA DE FILTROS ORIGINAL */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
+            <Input
+              className="pl-4 h-10"
+              placeholder="Buscar despesa..."
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            />
+          </div>
+          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
+            <SelectTrigger className="w-[160px] h-10">
+              <SelectValue placeholder="Todos os bancos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os bancos</SelectItem>
+              {unique("banco").map((b) => (
+                <SelectItem key={b} value={b}>
+                  {b}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
+            <SelectTrigger className="w-[160px] h-10">
+              <SelectValue placeholder="Todos os cartões" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os cartões</SelectItem>
+              {cartoes.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.classificacao} onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}>
+            <SelectTrigger className="w-[160px] h-10">
+              <SelectValue placeholder="Todas as categorias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as categorias</SelectItem>
+              {unique("classificacao").map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
+            <SelectTrigger className="w-[160px] h-10">
+              <SelectValue placeholder="Todas as faturas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as faturas</SelectItem>
+              {unique("fatura").map((f) => (
+                <SelectItem key={f} value={f}>
+                  {formatFatura(f)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* INDICADORES ORIGINAIS (Renderizados via SummaryCards + Card do Teto) */}
+        <div className="grid gap-4 md:grid-cols-5">
+          {/* O Seu SummaryCards deve renderizar os 4 cards da imagem 2 (Roxo, Azul, Verde, Laranja). 
+              Como adicionei o teto, coloquei ele no final. Se preferir que ele assuma o lugar do Total, avise. */}
+          <div className="md:col-span-4">
+            <SummaryCards expenses={filteredAndSorted} />
           </div>
 
+          {/* Card do Teto Adicional (Mantendo seu layout, adicionei este no final da linha) */}
           <div
-            className={cn(
-              "lg:col-span-1 rounded-2xl p-6 shadow-xl flex flex-col justify-center cursor-pointer transition-all hover:brightness-110",
-              remainingBudget < 0 ? "bg-red-600 text-white" : "bg-emerald-500 text-white",
-            )}
+            className="rounded-xl p-5 shadow-sm border border-slate-100 flex flex-col justify-center cursor-pointer hover:opacity-90 bg-white"
             onClick={() => {
               setTempBudget(budget);
               setBudgetDialogOpen(true);
             }}
           >
-            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Saldo do Teto</p>
-            <h2 className="text-2xl font-black tracking-tighter">{formatCurrency(remainingBudget)}</h2>
-            <p className="text-[8px] mt-1 font-bold opacity-60 italic">CLIQUE P/ AJUSTAR</p>
-          </div>
-
-          <div className="rounded-2xl bg-white p-6 shadow-xl flex flex-col justify-center border-b-4 border-emerald-400">
-            <div className="flex items-center gap-2 text-slate-400 mb-1">
-              <CreditCard size={14} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Transações</p>
-            </div>
-            <h2 className="text-2xl font-black text-slate-800">{filteredAndSorted.length}</h2>
-          </div>
-
-          <div className="rounded-2xl bg-white p-6 shadow-xl flex flex-col justify-center border-b-4 border-orange-500">
-            <div className="flex items-center gap-2 text-slate-400 mb-1">
-              <Tags size={14} />
-              <p className="text-[10px] font-black uppercase tracking-widest">Categorias</p>
-            </div>
-            <h2 className="text-2xl font-black text-slate-800">{uniqueCats}</h2>
+            <p className="text-sm font-medium text-slate-500 flex items-center justify-between">
+              Saldo do Teto <Target size={16} />
+            </p>
+            <h2 className={cn("text-2xl font-bold mt-2", remainingBudget < 0 ? "text-red-500" : "text-emerald-500")}>
+              {formatCurrency(remainingBudget)}
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">Limite: {formatCurrency(budget)}</p>
           </div>
         </div>
 
-        {/* FILTROS */}
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100">
-          <div className="grid gap-4 md:grid-cols-6 lg:grid-cols-12 items-end">
-            <div className="md:col-span-3 lg:col-span-4 space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Pesquisar</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  className="pl-9 bg-slate-50 border-none"
-                  placeholder="O que você procura?"
-                  value={filters.search}
-                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="lg:col-span-2 space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Início</label>
-              <Input
-                type="date"
-                className="bg-slate-50 border-none"
-                value={filters.dataInicio}
-                onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
-              />
-            </div>
-            <div className="lg:col-span-2 space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Fim</label>
-              <Input
-                type="date"
-                className="bg-slate-50 border-none"
-                value={filters.dataFim}
-                onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
-              />
-            </div>
-            <div className="lg:col-span-2 space-y-1.5">
-              <label className="text-[10px] font-bold text-slate-400 uppercase">Banco</label>
-              <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-                <SelectTrigger className="bg-slate-50 border-none">
-                  <SelectValue placeholder="Bancos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {[...new Set(allExpenses.map((e) => e.banco))].map((b) => (
-                    <SelectItem key={b} value={b}>
-                      {b}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="lg:col-span-2 flex items-center justify-center">
-              <Button
-                variant="ghost"
-                className="text-xs font-bold text-red-500"
-                onClick={() =>
-                  setFilters({
-                    search: "",
-                    banco: "all",
-                    cartao: "all",
-                    classificacao: "all",
-                    dataInicio: "",
-                    dataFim: "",
-                  })
-                }
-              >
-                LIMPAR
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* NAVEGAÇÃO E CONTEÚDO */}
+        {/* TABS ORIGINAIS */}
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="bg-slate-200/60 p-1 rounded-xl mb-6">
-            <TabsTrigger value="dashboard" className="rounded-lg font-black text-xs uppercase px-6">
-              Dashboard
+          <TabsList className="bg-transparent space-x-2 p-0 mb-6">
+            <TabsTrigger
+              value="dashboard"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-slate-200"
+            >
+              ☷ Dashboard
             </TabsTrigger>
-            <TabsTrigger value="tabela" className="rounded-lg font-black text-xs uppercase px-6">
-              Tabela de Gastos
+            <TabsTrigger
+              value="tabela"
+              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-slate-200"
+            >
+              ⊞ Tabela
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
+            {/* PRIMEIRA LINHA DE GRÁFICOS */}
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
-                <h3 className="text-xs font-black text-slate-400 uppercase mb-6 tracking-widest">Gastos por Banco</h3>
-                <ResponsiveContainer width="100%" height={300}>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Gastos por Banco / Cartão</h3>
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
                       data={pieData}
                       dataKey="value"
                       nameKey="name"
-                      innerRadius={70}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
                       outerRadius={100}
-                      paddingAngle={8}
+                      paddingAngle={2}
                     >
                       {pieData.map((_, i) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Legend iconType="square" wrapperStyle={{ fontSize: "12px" }} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
-                <h3 className="text-xs font-black text-slate-400 uppercase mb-6 tracking-widest">Evolução Mensal</h3>
-                <ResponsiveContainer width="100%" height={300}>
+
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Evolução por Fatura</h3>
+                <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={areaData}>
+                    <defs>
+                      <linearGradient id="colorPurple" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-[10px] font-bold" />
-                    <YAxis axisLine={false} tickLine={false} className="text-[10px] font-bold" />
-                    <Tooltip />
-                    <Area
-                      type="monotone"
-                      dataKey="valor"
-                      stroke="#2563eb"
-                      fill="#2563eb"
-                      fillOpacity={0.1}
-                      strokeWidth={4}
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-xs text-slate-500" />
+                    <YAxis
+                      tickFormatter={(v) => `R$${v / 1000}k`}
+                      axisLine={false}
+                      tickLine={false}
+                      className="text-xs text-slate-500"
                     />
+                    <Tooltip formatter={(v: number) => formatCurrency(v)} />
+                    <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* SEGUNDA LINHA DE GRÁFICOS (RANKED LISTS) */}
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <RankedList data={topClassificacao} title="Top 10 por Categoria" />
+              </div>
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+                <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
               </div>
             </div>
           </TabsContent>
 
           <TabsContent value="tabela">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <Table>
-                <TableHeader className="bg-slate-900">
-                  <TableRow className="hover:bg-slate-900 border-none">
-                    <TableHead
-                      className="text-white font-black text-[10px] cursor-pointer"
-                      onClick={() => handleSort("banco")}
-                    >
-                      BANCO {getSortIcon("banco")}
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("banco")}>
+                      Banco {getSortIcon("banco")}
                     </TableHead>
-                    <TableHead
-                      className="text-white font-black text-[10px] text-right cursor-pointer"
-                      onClick={() => handleSort("valor")}
-                    >
-                      VALOR {getSortIcon("valor")}
+                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("cartao")}>
+                      Cartão {getSortIcon("cartao")}
                     </TableHead>
-                    <TableHead
-                      className="text-white font-black text-[10px] cursor-pointer"
-                      onClick={() => handleSort("data")}
-                    >
-                      DATA {getSortIcon("data")}
+                    <TableHead className="cursor-pointer font-medium text-right" onClick={() => handleSort("valor")}>
+                      Valor {getSortIcon("valor")}
                     </TableHead>
-                    <TableHead className="text-white font-black text-[10px]">DESPESA</TableHead>
-                    <TableHead className="text-white font-black text-[10px]">CATEGORIA</TableHead>
+                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("data")}>
+                      Data {getSortIcon("data")}
+                    </TableHead>
+                    <TableHead className="font-medium">Parcela</TableHead>
+                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("despesa")}>
+                      Despesa {getSortIcon("despesa")}
+                    </TableHead>
+                    <TableHead className="font-medium">Categoria</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAndSorted.map((e) => (
-                    <TableRow key={e.id} className="hover:bg-slate-50 transition-colors border-slate-100">
-                      <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
+                    <TableRow key={e.id}>
+                      <TableCell className="font-medium">{e.banco}</TableCell>
+                      <TableCell className="text-slate-500 text-xs">••{e.cartao}</TableCell>
+                      <TableCell className="text-right font-medium text-blue-600">
                         {formatCurrency(Number(e.valor))}
                       </TableCell>
-                      <TableCell className="text-slate-400 font-medium">
-                        {format(parseISO(e.data), "dd/MM/yyyy")}
+                      <TableCell className="text-slate-600">{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
+                      <TableCell className="text-slate-600">
+                        {e.parcela > 0 ? `${e.parcela}/${e.total_parcela}` : "-"}
                       </TableCell>
-                      <TableCell className="font-bold text-slate-800">{e.despesa}</TableCell>
+                      <TableCell>{e.despesa}</TableCell>
                       <TableCell>
-                        <Badge className="bg-slate-100 text-slate-500 border-none font-black text-[9px] uppercase">
+                        <Badge
+                          className={cn(
+                            BADGE_COLORS[e.classificacao] || "bg-slate-100 text-slate-800",
+                            "font-medium border-none",
+                          )}
+                        >
                           {e.classificacao}
                         </Badge>
                       </TableCell>
@@ -387,7 +458,7 @@ export default function Index() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-blue-400"
+                            className="h-8 w-8 text-blue-500"
                             onClick={() => {
                               setEditing(e);
                               setFormOpen(true);
@@ -398,7 +469,7 @@ export default function Index() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-red-400"
+                            className="h-8 w-8 text-red-500"
                             onClick={() => setDeleting(e.id)}
                           >
                             <Trash2 size={14} />
@@ -415,29 +486,31 @@ export default function Index() {
       </div>
 
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent className="rounded-3xl border-none">
+        <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle className="font-black text-2xl italic tracking-tighter">AJUSTAR TETO</DialogTitle>
+            <DialogTitle>Ajustar Teto Mensal</DialogTitle>
           </DialogHeader>
-          <div className="py-6">
+          <div className="py-4">
             <Input
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black h-20 bg-slate-50 border-none text-center"
+              className="text-2xl font-bold"
             />
           </div>
-          <Button
-            onClick={() => {
-              setBudget(tempBudget);
-              localStorage.setItem("expense-budget", tempBudget.toString());
-              setBudgetDialogOpen(false);
-              toast.success("TETO ATUALIZADO!");
-            }}
-            className="bg-blue-600 font-black h-12 rounded-xl w-full"
-          >
-            SALVAR NOVO LIMITE
-          </Button>
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                setBudget(tempBudget);
+                localStorage.setItem("expense-budget", tempBudget.toString());
+                setBudgetDialogOpen(false);
+                toast.success("Teto atualizado!");
+              }}
+              className="bg-blue-600"
+            >
+              Salvar Novo Teto
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={() => {}} />
