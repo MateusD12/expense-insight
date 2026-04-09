@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +25,10 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: ExpenseFormProps) {
   const { data: allExpenses = [] } = useExpenses();
+
+  // Estados para controlar a digitação de forma livre sem o React "sobrescrever" os números
+  const [inputMensal, setInputMensal] = useState<string>("");
+  const [inputTotal, setInputTotal] = useState<string>("");
 
   const [formData, setFormData] = useState<Partial<Expense>>({
     banco: "",
@@ -40,13 +51,19 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
           ? initialData.data.substring(0, 7)
           : new Date().toISOString().slice(0, 7);
 
+      const vlr = initialData.valor || 0;
+      const totParc = initialData.total_parcela || 1;
+
       setFormData({
         ...initialData,
         data: initialData.data ? initialData.data.substring(0, 10) : new Date().toISOString().split("T")[0],
         parcela: initialData.parcela || 1,
-        total_parcela: initialData.total_parcela || 1,
+        total_parcela: totParc,
         fatura: faturaSegura,
       });
+
+      setInputMensal(vlr.toString());
+      setInputTotal((vlr * totParc).toFixed(2));
     } else {
       setFormData({
         banco: "",
@@ -60,6 +77,8 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         total_parcela: 1,
         fatura: new Date().toISOString().slice(0, 7),
       });
+      setInputMensal("");
+      setInputTotal("");
     }
   }, [initialData, open]);
 
@@ -73,11 +92,12 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       const pAtual = despesaExistente.parcela || 1;
       const pTotal = despesaExistente.total_parcela || 1;
       const proximaParcela = pAtual < pTotal ? pAtual + 1 : 1;
+      const vlr = despesaExistente.valor || 0;
 
       setFormData((prev) => ({
         ...prev,
         despesa: nome,
-        valor: despesaExistente.valor,
+        valor: vlr,
         classificacao: despesaExistente.classificacao,
         banco: despesaExistente.banco,
         cartao: despesaExistente.cartao,
@@ -85,9 +105,34 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         total_parcela: pTotal,
         parcela: proximaParcela,
       }));
+
+      setInputMensal(vlr.toString());
+      setInputTotal((vlr * pTotal).toFixed(2));
     } else {
       setFormData((prev) => ({ ...prev, despesa: nome }));
     }
+  };
+
+  const handleTotalParcelasChange = (val: number) => {
+    setFormData({ ...formData, total_parcela: val });
+    const mensalNum = parseFloat(inputMensal) || 0;
+    setInputTotal((mensalNum * val).toFixed(2));
+  };
+
+  const handleInputMensalChange = (val: string) => {
+    setInputMensal(val);
+    const num = parseFloat(val) || 0;
+    setInputTotal((num * (formData.total_parcela || 1)).toFixed(2));
+    setFormData({ ...formData, valor: num });
+  };
+
+  const handleInputTotalChange = (val: string) => {
+    setInputTotal(val);
+    const num = parseFloat(val) || 0;
+    const mensal = num / (formData.total_parcela || 1);
+    const roundedMensal = Number(mensal.toFixed(2));
+    setInputMensal(roundedMensal.toString());
+    setFormData({ ...formData, valor: roundedMensal });
   };
 
   const ComboboxField = ({ label, value, options, onChange }: any) => {
@@ -158,9 +203,11 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
           <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight uppercase">
             {initialData ? "Editar Gasto" : "Novo Gasto"}
           </DialogTitle>
+          <DialogDescription className="sr-only">Preencha os dados do seu gasto.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-5 py-2">
+          {/* Calculadora de Valores */}
           <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4 w-full">
             <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm">
               <Calculator size={16} /> Valores e Parcelas
@@ -183,7 +230,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   type="number"
                   min={1}
                   value={formData.total_parcela}
-                  onChange={(e) => setFormData({ ...formData, total_parcela: Math.max(1, Number(e.target.value)) })}
+                  onChange={(e) => handleTotalParcelasChange(Math.max(1, Number(e.target.value)))}
                   className="bg-white border-slate-200 font-bold w-full"
                 />
               </div>
@@ -199,8 +246,8 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   <Input
                     type="number"
                     step="0.01"
-                    value={formData.valor || ""}
-                    onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
+                    value={inputMensal}
+                    onChange={(e) => handleInputMensalChange(e.target.value)}
                     className="pl-9 font-black text-blue-600 text-lg border-blue-300 focus-visible:ring-blue-500 bg-white w-full"
                   />
                 </div>
@@ -214,15 +261,8 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   <Input
                     type="number"
                     step="0.01"
-                    value={
-                      formData.valor ? Number(((formData.valor || 0) * (formData.total_parcela || 1)).toFixed(2)) : ""
-                    }
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        valor: Number((Number(e.target.value) / (formData.total_parcela || 1)).toFixed(2)),
-                      })
-                    }
+                    value={inputTotal}
+                    onChange={(e) => handleInputTotalChange(e.target.value)}
                     className="pl-9 font-black text-slate-700 text-lg bg-white border-slate-200 w-full"
                   />
                 </div>
