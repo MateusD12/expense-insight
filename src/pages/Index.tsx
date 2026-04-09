@@ -28,6 +28,7 @@ import {
   Wallet,
   Target,
   FilterX,
+  Filter,
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
@@ -122,6 +123,7 @@ export default function Index() {
     key: "data",
     direction: "desc",
   });
+  const [showFilters, setShowFilters] = useState(false); // Estado para controlar a gaveta de filtros
 
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -432,6 +434,15 @@ export default function Index() {
     );
   };
 
+  // Verifica se há algum filtro avançado aplicado para dar destaque no botão
+  const hasActiveFilters =
+    filters.banco !== "all" ||
+    filters.classificacao !== "all" ||
+    filters.justificativa !== "all" ||
+    filters.fatura !== "all" ||
+    filters.dataInicio !== "" ||
+    filters.dataFim !== "";
+
   if (isCheckingAuth)
     return (
       <div className="h-screen flex items-center justify-center font-bold text-slate-400 italic">
@@ -546,123 +557,149 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-4 sm:space-y-6">
-        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2 sm:gap-3 relative overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
+        {/* Painel de Filtros Inteligente */}
+        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2 sm:gap-3 relative overflow-hidden transition-all">
+          {/* Linha Superior Sempre Visível */}
+          <div className="flex gap-2 sm:gap-3 items-center">
             <Input
-              className="col-span-1 sm:col-span-2 md:flex-1 min-w-0 md:min-w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
+              className="flex-1 min-w-0 h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
               placeholder="Buscar despesa ou justificativa..."
               value={filters.search}
               onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
             />
-            <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
-                <SelectValue placeholder="Faturas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="font-bold text-blue-600">
-                  Todas Faturas
-                </SelectItem>
-                {unique("fatura").map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {formatFatura(f as string)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-              <SelectTrigger className="w-full md:w-[150px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
-                <SelectValue placeholder="Bancos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="font-bold text-blue-600">
-                  Todos Bancos
-                </SelectItem>
-                {unique("banco").map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={filters.classificacao}
-              onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
-            >
-              <SelectTrigger className="w-full md:w-[160px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
-                <SelectValue placeholder="Categorias" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="font-bold text-blue-600">
-                  Todas Categorias
-                </SelectItem>
-                {unique("classificacao").map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3 items-center">
-            <Select
-              value={filters.justificativa}
-              onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
-            >
-              <SelectTrigger className="col-span-1 sm:col-span-2 md:w-[200px] h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
-                <SelectValue placeholder="Justificativas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="font-bold text-blue-600">
-                  Todas Justif.
-                </SelectItem>
-                {unique("justificativa").map((f) => (
-                  <SelectItem key={f} value={f}>
-                    {f}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-3 rounded-xl h-10 sm:h-11 border-none overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-              <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
-                De:
-              </span>
-              <input
-                type="date"
-                className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
-                value={filters.dataInicio}
-                onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-3 rounded-xl h-10 sm:h-11 border-none overflow-hidden focus-within:ring-2 focus-within:ring-blue-500">
-              <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
-                Até:
-              </span>
-              <input
-                type="date"
-                className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
-                value={filters.dataFim}
-                onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
-              />
-            </div>
             <Button
-              variant="ghost"
-              className="col-span-1 sm:col-span-2 md:col-auto text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-10 sm:h-11 w-full md:w-auto mt-1 md:mt-0 transition-colors rounded-xl"
-              onClick={() =>
-                setFilters({
-                  search: "",
-                  banco: "all",
-                  cartao: "all",
-                  classificacao: "all",
-                  justificativa: "all",
-                  fatura: "all",
-                  dataInicio: "",
-                  dataFim: "",
-                })
-              }
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "h-10 sm:h-11 px-3 sm:px-4 font-bold border-none transition-colors",
+                showFilters || hasActiveFilters
+                  ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  : "bg-slate-50 text-slate-600 hover:bg-slate-100",
+              )}
             >
-              <FilterX size={16} className="mr-2" /> Limpar Filtros
+              <Filter size={16} className={cn("sm:mr-2", hasActiveFilters && "fill-blue-700")} />
+              <span className="hidden sm:inline">
+                {showFilters ? "Ocultar Filtros" : hasActiveFilters ? "Filtros Ativos" : "Filtros Avançados"}
+              </span>
             </Button>
           </div>
+
+          {/* Gaveta de Filtros Avançados Ocultável */}
+          {showFilters && (
+            <div className="pt-3 border-t border-slate-100 mt-1 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+              <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
+                  <SelectValue placeholder="Faturas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold text-blue-600">
+                    Todas Faturas
+                  </SelectItem>
+                  {unique("fatura").map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {formatFatura(f as string)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
+                  <SelectValue placeholder="Bancos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold text-blue-600">
+                    Todos Bancos
+                  </SelectItem>
+                  {unique("banco").map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={filters.classificacao}
+                onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
+              >
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
+                  <SelectValue placeholder="Categorias" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold text-blue-600">
+                    Todas Categorias
+                  </SelectItem>
+                  {unique("classificacao").map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={filters.justificativa}
+                onValueChange={(v) => setFilters((f) => ({ ...f, justificativa: v }))}
+              >
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus:ring-blue-500">
+                  <SelectValue placeholder="Justificativas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold text-blue-600">
+                    Todas Justif.
+                  </SelectItem>
+                  {unique("justificativa").map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="col-span-2 md:col-span-4 flex flex-wrap gap-2 sm:gap-3 items-center mt-1">
+                <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-3 rounded-xl h-10 sm:h-11 border-none overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 flex-1 md:flex-none">
+                  <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                    De:
+                  </span>
+                  <input
+                    type="date"
+                    className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
+                    value={filters.dataInicio}
+                    onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-center gap-1 sm:gap-2 bg-slate-50 hover:bg-slate-100 transition-colors px-3 rounded-xl h-10 sm:h-11 border-none overflow-hidden focus-within:ring-2 focus-within:ring-blue-500 flex-1 md:flex-none">
+                  <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest shrink-0">
+                    Até:
+                  </span>
+                  <input
+                    type="date"
+                    className="bg-transparent text-xs sm:text-sm font-bold text-slate-700 outline-none w-full"
+                    value={filters.dataFim}
+                    onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
+                  />
+                </div>
+                {hasActiveFilters && (
+                  <Button
+                    variant="ghost"
+                    className="col-span-2 md:col-auto text-red-500 hover:bg-red-50 hover:text-red-600 font-bold h-10 sm:h-11 w-full md:w-auto transition-colors rounded-xl"
+                    onClick={() =>
+                      setFilters({
+                        search: "",
+                        banco: "all",
+                        cartao: "all",
+                        classificacao: "all",
+                        justificativa: "all",
+                        fatura: "all",
+                        dataInicio: "",
+                        dataFim: "",
+                      })
+                    }
+                  >
+                    <FilterX size={16} className="mr-2" /> Limpar Filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
