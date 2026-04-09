@@ -109,35 +109,35 @@ export default function Index() {
   });
   const [tempBudget, setTempBudget] = useState(budget);
 
+  // Mapeamento Inteligente: Filtra e Força as parcelas a serem 1 se vierem como 0 do banco antigo
   const filteredAndSorted = useMemo(() => {
-    let result = allExpenses.filter((e) => {
-      const matchSearch =
-        e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
-        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
-      const matchBanco = filters.banco === "all" || e.banco === filters.banco;
-      const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
-      const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
+    let result = allExpenses
+      .map((e) => ({
+        ...e,
+        parcela: e.parcela && e.parcela > 0 ? e.parcela : 1,
+        total_parcela: e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1,
+      }))
+      .filter((e) => {
+        const matchSearch =
+          e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
+          e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
+        const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
+        const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+        const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
 
-      // Ajuste no filtro de fatura para considerar YYYY-MM
-      const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
-      const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
+        const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
+        const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
 
-      let matchDate = true;
-      if (filters.dataInicio && filters.dataFim && e.data) {
-        try {
-          const date = parseISO(e.data);
-          matchDate = isWithinInterval(date, {
-            start: parseISO(filters.dataInicio),
-            end: parseISO(filters.dataFim),
-          });
-        } catch (err) {
-          // Ignora erro de data inválida na filtragem
+        let matchDate = true;
+        if (filters.dataInicio && filters.dataFim && e.data) {
+          try {
+            const date = parseISO(e.data);
+            matchDate = isWithinInterval(date, { start: parseISO(filters.dataInicio), end: parseISO(filters.dataFim) });
+          } catch (err) {}
         }
-      }
-
-      return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
-    });
+        return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
+      });
 
     result.sort((a, b) => {
       const aVal = a[sortConfig.key] ?? "";
@@ -460,74 +460,119 @@ export default function Index() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("banco")}>
+                    <TableHead
+                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
+                      onClick={() => handleSort("banco")}
+                    >
                       Banco {getSortIcon("banco")}
                     </TableHead>
-                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("cartao")}>
+                    <TableHead
+                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
+                      onClick={() => handleSort("cartao")}
+                    >
                       Cartão {getSortIcon("cartao")}
                     </TableHead>
-                    <TableHead className="cursor-pointer font-medium text-right" onClick={() => handleSort("valor")}>
-                      Valor {getSortIcon("valor")}
+                    <TableHead
+                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px] text-right"
+                      onClick={() => handleSort("valor")}
+                    >
+                      Valores e Faltantes {getSortIcon("valor")}
                     </TableHead>
-                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("data")}>
+                    <TableHead
+                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
+                      onClick={() => handleSort("data")}
+                    >
                       Data {getSortIcon("data")}
                     </TableHead>
-                    <TableHead className="font-medium">Parcela</TableHead>
-                    <TableHead className="cursor-pointer font-medium" onClick={() => handleSort("despesa")}>
+                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Parcela</TableHead>
+                    <TableHead
+                      className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
+                      onClick={() => handleSort("despesa")}
+                    >
                       Despesa {getSortIcon("despesa")}
                     </TableHead>
-                    <TableHead className="font-medium">Categoria</TableHead>
+                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Categoria</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSorted.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium">{e.banco}</TableCell>
-                      <TableCell className="text-slate-500 text-xs">••{e.cartao}</TableCell>
-                      <TableCell className="text-right font-medium text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell className="text-slate-600">{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
-                      <TableCell className="text-slate-600">
-                        {e.parcela > 0 ? `${e.parcela}/${e.total_parcela}` : "-"}
-                      </TableCell>
-                      <TableCell>{e.despesa}</TableCell>
-                      <TableCell>
-                        <Badge
-                          className={cn(
-                            BADGE_COLORS[e.classificacao] || "bg-slate-100 text-slate-800",
-                            "font-medium border-none",
+                  {filteredAndSorted.map((e) => {
+                    const vParcela = Number(e.valor);
+                    const pTotal = e.total_parcela || 1;
+                    const pAtual = e.parcela || 1;
+                    const vTotal = vParcela * pTotal;
+                    const faltantes = pTotal - pAtual + 1;
+                    const vFalta = vParcela * faltantes;
+
+                    return (
+                      <TableRow key={e.id}>
+                        <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
+                        <TableCell className="text-slate-400 text-xs font-mono">••{e.cartao}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-black text-blue-600 text-sm mb-1">{formatCurrency(vParcela)}</div>
+                          {pTotal > 1 && (
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="text-[9px] text-slate-500 font-bold uppercase bg-slate-100 px-1.5 py-0.5 rounded">
+                                Total: {formatCurrency(vTotal)}
+                              </span>
+                              {faltantes > 0 && (
+                                <span className="text-[9px] text-orange-600 font-bold uppercase bg-orange-50 px-1.5 py-0.5 rounded">
+                                  Falta: {formatCurrency(vFalta)}
+                                </span>
+                              )}
+                            </div>
                           )}
-                        >
-                          {e.classificacao}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-blue-500"
-                            onClick={() => {
-                              setEditing(e);
-                              setFormOpen(true);
-                            }}
+                        </TableCell>
+                        <TableCell className="text-slate-500 font-medium">
+                          {format(parseISO(e.data), "dd/MM/yyyy")}
+                        </TableCell>
+                        <TableCell className="text-slate-700 font-bold text-xs">
+                          {pTotal > 1 ? `${pAtual}/${pTotal}` : "1/1 (À vista)"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-800">{e.despesa}</span>
+                            <span className="text-[10px] text-slate-400 italic max-w-[150px] truncate">
+                              {e.justificativa}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={cn(
+                              BADGE_COLORS[e.classificacao] || "bg-slate-100 text-slate-800",
+                              "font-bold text-[10px] border-none uppercase shadow-none",
+                            )}
                           >
-                            <Pencil size={14} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500"
-                            onClick={() => setDeleting(e.id)}
-                          >
-                            <Trash2 size={14} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {e.classificacao}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-500 hover:bg-blue-50"
+                              onClick={() => {
+                                setEditing(e);
+                                setFormOpen(true);
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:bg-red-50"
+                              onClick={() => setDeleting(e.id)}
+                            >
+                              <Trash2 size={14} />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -546,7 +591,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-2xl font-bold"
+              className="text-3xl font-black h-16 bg-slate-50 border-none text-center"
             />
           </div>
           <DialogFooter>
@@ -557,7 +602,7 @@ export default function Index() {
                 setBudgetDialogOpen(false);
                 toast.success("Teto atualizado!");
               }}
-              className="bg-blue-600"
+              className="bg-blue-600 font-bold h-12 w-full rounded-xl"
             >
               Salvar Novo Teto
             </Button>
@@ -569,11 +614,14 @@ export default function Index() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação excluirá permanentemente o gasto.</AlertDialogDescription>
+            <AlertDialogDescription>
+              Esta ação excluirá permanentemente o gasto do banco de dados.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel className="font-bold">Cancelar</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-red-600 font-bold"
               onClick={() => {
                 if (deleting) {
                   deleteExpense.mutate(deleting, {
@@ -581,11 +629,12 @@ export default function Index() {
                       toast.success("Gasto excluído!");
                       setDeleting(null);
                     },
+                    onError: () => toast.error("Erro ao excluir o gasto."),
                   });
                 }
               }}
             >
-              Excluir
+              Excluir Gasto
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -606,8 +655,8 @@ export default function Index() {
             despesa: data.despesa || "",
             classificacao: data.classificacao || "",
             justificativa: data.justificativa || "",
-            parcela: Number(data.parcela) || 0,
-            total_parcela: Number(data.total_parcela) || 0,
+            parcela: Number(data.parcela) || 1,
+            total_parcela: Number(data.total_parcela) || 1,
             fatura: faturaSegura || null,
           };
 
