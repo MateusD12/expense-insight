@@ -39,6 +39,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  BarChart,
+  Bar,
 } from "recharts";
 import { format, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -94,6 +96,7 @@ export default function Index() {
     dataFim: "",
   });
 
+  const [installmentFilter, setInstallmentFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -165,7 +168,6 @@ export default function Index() {
       ? unique("cartao")
       : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
-  // --- LÓGICA DO GRÁFICO DE PIZZA ATUALIZADA ---
   const pieData = useMemo(() => {
     const map: Record<string, { value: number; banco: string; cartao: string }> = {};
     filteredAndSorted.forEach((e) => {
@@ -184,7 +186,6 @@ export default function Index() {
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-    // Esconde o texto se a fatia for menor que 4% para evitar encavalamento
     if (percent < 0.04) return null;
 
     return (
@@ -193,7 +194,6 @@ export default function Index() {
       </text>
     );
   };
-  // ----------------------------------------------
 
   const areaData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -232,6 +232,36 @@ export default function Index() {
       .slice(0, 10)
       .map(([name, valor]) => ({ name, valor }));
   }, [filteredAndSorted]);
+
+  // --- LÓGICA DO GRÁFICO DE PARCELAS ---
+  const uniqueInstallmentNames = useMemo(() => {
+    return [...new Set(filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1).map((e) => e.justificativa))].filter(
+      Boolean,
+    ) as string[];
+  }, [filteredAndSorted]);
+
+  const installmentsData = useMemo(() => {
+    let data = filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1);
+
+    if (installmentFilter !== "all") {
+      data = data.filter((e) => e.justificativa === installmentFilter);
+    }
+
+    return data.map((e) => {
+      const pTotal = e.total_parcela || 1;
+      const pAtual = e.parcela || 1;
+      const pagas = pAtual - 1;
+      const restantes = pTotal - pagas;
+
+      return {
+        name: `${e.justificativa || "Sem justificativa"} (${pTotal}x)`, // Justificativa + Parcelas no Eixo Y
+        Pagas: pagas,
+        Restantes: restantes,
+        Total: pTotal,
+      };
+    });
+  }, [filteredAndSorted, installmentFilter]);
+  // -------------------------------------
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
   const uniqueBancos = new Set(filteredAndSorted.map((e) => e.banco)).size;
@@ -487,6 +517,55 @@ export default function Index() {
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
               </div>
+            </div>
+
+            {/* --- GRÁFICO DE PARCELAS --- */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h3 className="text-sm font-semibold text-slate-600 uppercase">Acompanhamento de Parcelas</h3>
+                <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                  <SelectTrigger className="w-[240px] h-9 text-xs">
+                    <SelectValue placeholder="Filtrar justificativa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as Parceladas</SelectItem>
+                    {uniqueInstallmentNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {installmentsData.length === 0 ? (
+                <div className="text-center text-slate-400 py-10 text-sm">
+                  Nenhuma despesa parcelada encontrada para os filtros atuais.
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.length * 40)}>
+                  <BarChart
+                    data={installmentsData}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={180}
+                      tick={{ fontSize: 11, fill: "#64748b" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip cursor={{ fill: "transparent" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
+                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]} />
+                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </TabsContent>
 
