@@ -104,7 +104,6 @@ export default function Index() {
     dataInicio: "",
     dataFim: "",
   });
-  const [installmentFilter, setInstallmentFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState<{ key: keyof Expense; direction: "asc" | "desc" }>({
     key: "data",
     direction: "desc",
@@ -337,14 +336,16 @@ export default function Index() {
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
+    const cats: Record<string, number> = {};
+    const justs: Record<string, number> = {};
     const temporal: Record<string, number> = {};
-    const cats: Record<string, number> = {}; // Re-adicionado para os cards
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
       const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
       cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
+      justs[e.justificativa || "Outros"] = (justs[e.justificativa || "Outros"] || 0) + val;
 
       if (e.fatura) {
         const f = e.fatura.slice(0, 7);
@@ -357,6 +358,10 @@ export default function Index() {
       cats: Object.entries(cats)
         .sort((a, b) => b[1] - a[1])
         .map(([name, value]) => ({ name, value })),
+      justs: Object.entries(justs)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([name, value]) => ({ name, value })),
       temporal: Object.entries(temporal)
         .sort()
         .map(([f, valor]) => ({
@@ -365,29 +370,6 @@ export default function Index() {
         })),
     };
   }, [filteredAndSorted]);
-
-  const installmentsData = useMemo(() => {
-    let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
-    const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
-    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
-
-    const latestInstallments: Record<string, any> = {};
-    data.forEach((e) => {
-      const key = e.justificativa || e.despesa || "Sem info";
-      if (!latestInstallments[key] || e.parcela > latestInstallments[key].parcela) {
-        latestInstallments[key] = e;
-      }
-    });
-
-    return {
-      data: Object.values(latestInstallments).map((e) => ({
-        name: `${e.justificativa || e.despesa} (${e.parcela}/${e.total_parcela})`,
-        Pagas: e.parcela - 1,
-        Restantes: e.total_parcela - (e.parcela - 1),
-      })),
-      options: uniqueJust,
-    };
-  }, [filteredAndSorted, installmentFilter]);
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
@@ -401,6 +383,10 @@ export default function Index() {
     });
   };
 
+  const handleCatClick = (data: any) => {
+    setFilters((prev) => ({ ...prev, classificacao: prev.classificacao === data.name ? "all" : data.name }));
+  };
+
   const renderSortIcon = (key: string) => {
     if (sortConfig.key !== key) return <ArrowUpDown size={10} className="opacity-30 inline-block ml-1" />;
     return sortConfig.direction === "asc" ? (
@@ -410,7 +396,7 @@ export default function Index() {
     );
   };
 
-  const truncateText = (text: string, limit: number = 12) => {
+  const truncateText = (text: string, limit: number = 15) => {
     if (!text) return "";
     return text.length > limit ? text.substring(0, limit) + "..." : text;
   };
@@ -772,7 +758,7 @@ export default function Index() {
                   <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
                     Divisão por Banco
                   </h3>
-                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
@@ -862,31 +848,15 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
+              {/* GRÁFICO DE JUSTIFICATIVAS (ADICIONADO SEGUINDO O MODELO) */}
               <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
-                  <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
-                    Acompanhamento de Parcelas
-                  </h3>
-                  <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
-                    <SelectTrigger className="w-full sm:w-[220px] h-10 text-xs font-bold border-slate-200 bg-slate-50 focus:ring-blue-500 rounded-xl">
-                      <SelectValue placeholder="Filtrar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all" className="font-bold text-blue-600">
-                        Todas as Compras
-                      </SelectItem>
-                      {installmentsData.options.map((o) => (
-                        <SelectItem key={o} value={o}>
-                          {o}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, installmentsData.data.length * 45)}>
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-sky-500"></div>
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
+                  Top 10 Justificativas
+                </h3>
+                <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 40)}>
                   <BarChart
-                    data={installmentsData.data}
+                    data={chartData.justs}
                     layout="vertical"
                     margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
                   >
@@ -901,6 +871,7 @@ export default function Index() {
                       tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
+                      formatter={(v: number) => formatCurrency(v)}
                       cursor={{ fill: "#f1f5f9" }}
                       contentStyle={{
                         borderRadius: "16px",
@@ -909,22 +880,12 @@ export default function Index() {
                         fontWeight: "bold",
                       }}
                     />
-                    <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
                     <Bar
-                      dataKey="Pagas"
-                      stackId="a"
-                      fill="#10b981"
-                      radius={[0, 0, 0, 0]}
-                      barSize={24}
-                      className="hover:opacity-80 transition-all"
-                    />
-                    <Bar
-                      dataKey="Restantes"
-                      stackId="a"
-                      fill="#f59e0b"
+                      dataKey="value"
+                      fill="#0ea5e9"
                       radius={[0, 6, 6, 0]}
                       barSize={24}
-                      className="hover:opacity-80 transition-all"
+                      className="hover:opacity-80 transition-opacity"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -1073,7 +1034,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-purple-500 shadow-inner"
             />
           </div>
           <DialogFooter>
