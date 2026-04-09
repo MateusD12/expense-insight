@@ -39,13 +39,24 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
+  BarChart,
+  Bar,
 } from "recharts";
 import { format, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const COLORS = ["#7c3aed", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
+const COLORS = [
+  "#7c3aed", // Roxo (Itaú ..2596)
+  "#06b6d4", // Ciano (Itaú ..6466)
+  "#10b981", // Verde (NuBank ..9531)
+  "#f59e0b",
+  "#ef4444",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
 
 const BADGE_COLORS: Record<string, string> = {
   Estudos: "bg-blue-100 text-blue-800",
@@ -62,7 +73,6 @@ const BADGE_COLORS: Record<string, string> = {
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-// Retornamos a função para ler APENAS a fatura oficial, sem fallback para a data da compra
 const formatFatura = (d: string | null) => {
   if (!d) return "-";
   try {
@@ -85,6 +95,9 @@ export default function Index() {
     dataInicio: "",
     dataFim: "",
   });
+
+  // Filtro específico para o gráfico de parcelas
+  const [installmentFilter, setInstallmentFilter] = useState("all");
 
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -203,6 +216,36 @@ export default function Index() {
       .slice(0, 10)
       .map(([name, valor]) => ({ name, valor }));
   }, [filteredAndSorted]);
+
+  // --- LÓGICA DO GRÁFICO DE PARCELAS ---
+  const uniqueInstallmentNames = useMemo(() => {
+    return [...new Set(filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1).map((e) => e.despesa))].filter(
+      Boolean,
+    ) as string[];
+  }, [filteredAndSorted]);
+
+  const installmentsData = useMemo(() => {
+    let data = filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1);
+
+    if (installmentFilter !== "all") {
+      data = data.filter((e) => e.despesa === installmentFilter);
+    }
+
+    return data.map((e) => {
+      const pTotal = e.total_parcela || 1;
+      const pAtual = e.parcela || 1;
+      const pagas = pAtual - 1;
+      const restantes = pTotal - pagas;
+
+      return {
+        name: e.despesa || "Sem nome",
+        Pagas: pagas,
+        Restantes: restantes,
+        Total: pTotal,
+      };
+    });
+  }, [filteredAndSorted, installmentFilter]);
+  // -------------------------------------
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
   const uniqueBancos = new Set(filteredAndSorted.map((e) => e.banco)).size;
@@ -398,6 +441,7 @@ export default function Index() {
                       innerRadius={60}
                       outerRadius={100}
                       paddingAngle={2}
+                      label={({ percent }) => `${(percent * 100).toFixed(0)}%`} // Rótulo de porcentagem visível
                     >
                       {pieData.map((_, i) => (
                         <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
@@ -441,6 +485,53 @@ export default function Index() {
               <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
                 <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
               </div>
+            </div>
+
+            {/* --- NOVO GRÁFICO DE PARCELAS --- */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <h3 className="text-sm font-semibold text-slate-600 uppercase">Acompanhamento de Parcelas</h3>
+                <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                  <SelectTrigger className="w-[220px] h-9 text-xs">
+                    <SelectValue placeholder="Filtrar despesa..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as Parceladas</SelectItem>
+                    {uniqueInstallmentNames.map((name) => (
+                      <SelectItem key={name} value={name}>
+                        {name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {installmentsData.length === 0 ? (
+                <div className="text-center text-slate-400 py-10 text-sm">Nenhuma despesa parcelada encontrada.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={Math.max(250, installmentsData.length * 40)}>
+                  <BarChart
+                    data={installmentsData}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                    <XAxis type="number" hide />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      width={140}
+                      tick={{ fontSize: 11, fill: "#64748b" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip cursor={{ fill: "transparent" }} />
+                    <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "10px" }} />
+                    <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]} />
+                    <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </TabsContent>
 
