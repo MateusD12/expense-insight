@@ -577,41 +577,44 @@ export default function Index() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ExpenseForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        initialData={editing}
+      <ExpenseForm 
+        open={formOpen} 
+        onOpenChange={setFormOpen} 
+        initialData={editing} 
         onSubmit={(data) => {
-          // Conversão de segurança para garantir que não mandamos strings no lugar de números
-          const payload = {
-            ...data,
-            valor: Number(data.valor),
+          // 1. Criamos um objeto "limpo" EXATAMENTE com as colunas que vimos na sua tabela
+          // Se alguma dessas colunas não existir no seu Supabase, você precisa removê-la daqui!
+          const payloadLimpo = {
+            banco: data.banco || "",
+            cartao: data.cartao || "",
+            valor: Number(data.valor) || 0,
+            data: data.data || new Date().toISOString().split('T')[0],
+            despesa: data.despesa || "",
+            classificacao: data.classificacao || "",
+            justificativa: data.justificativa || "",
             parcela: Number(data.parcela) || 0,
             total_parcela: Number(data.total_parcela) || 0,
+            fatura: data.fatura || "", 
           };
 
           if (editing) {
-            updateExpense.mutate(
-              { id: editing.id, ...payload },
-              {
-                onSuccess: () => toast.success("Gasto atualizado!"),
-                onError: (error) => {
-                  console.error("Supabase Error [UPDATE]:", error);
-                  toast.error("Erro ao atualizar o gasto. Verifique o console.");
-                },
+            updateExpense.mutate({ id: editing.id, ...payloadLimpo }, {
+              onSuccess: () => toast.success("Gasto atualizado!"),
+              onError: (error) => {
+                 console.error("Erro UPDATE:", error);
+                 toast.error("Erro ao atualizar o gasto. Verifique os tipos de dados.");
               },
-            );
+            });
           } else {
-            addExpense.mutate(payload, {
+            addExpense.mutate(payloadLimpo, {
               onSuccess: () => toast.success("Gasto adicionado!"),
               onError: (error) => {
-                console.error("Supabase Error [INSERT]:", error);
-                toast.error("Erro ao adicionar o gasto. Verifique o console.");
+                 console.error("Erro INSERT:", error);
+                 // Adicionamos um alert temporário pra você ver o erro exato na tela se falhar de novo
+                 alert("Erro do Supabase: Verifique se sua tabela 'expenses' tem TODAS essas colunas: banco, cartao, valor, data, despesa, classificacao, justificativa, parcela, total_parcela, fatura.");
+                 toast.error("Erro ao adicionar o gasto.");
               },
             });
           }
-        }}
+        }} 
       />
-    </div>
-  );
-}
