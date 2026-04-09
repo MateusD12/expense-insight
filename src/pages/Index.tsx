@@ -420,9 +420,11 @@ export default function Index() {
     );
   };
 
-  // Funções de truncar texto para caber no eixo Y sem encavalar
-  const truncateClassificacao = (text: string) => (text.length > 12 ? text.substring(0, 12) + "..." : text);
-  const truncateJustificativa = (text: string) => (text.length > 25 ? text.substring(0, 25) + "..." : text);
+  // Funções de truncar texto para os eixos Y
+  const truncateLabel = (text: string, limit: number = 20) => {
+    if (!text) return "";
+    return text.length > limit ? text.substring(0, limit) + "..." : text;
+  };
 
   const hasActiveFilters =
     filters.banco !== "all" ||
@@ -752,13 +754,13 @@ export default function Index() {
           <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100 overflow-x-auto">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
@@ -781,7 +783,7 @@ export default function Index() {
                   <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
                     Divisão por Banco
                   </h3>
-                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
@@ -871,28 +873,28 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* GRÁFICO DE CLASSIFICAÇÃO - CORRIGIDO (ESPACEMENTO LARGO) */}
-              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
+              {/* GRÁFICO DE CLASSIFICAÇÃO - LADO A LADO COM JUSTIFICATIVA */}
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
                 <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1 px-2">
                   <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
                     Classificação
                   </h3>
-                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2.5 py-1 rounded-lg">
+                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
                     Clique p/ Filtrar
                   </span>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
+                <ResponsiveContainer width="100%" height={Math.max(260, chartData.cats.length * 40)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={160} // LARGURA DO EIXO AUMENTADA
+                      width={160} // LARGURA AUMENTADA PARA CABER O TEXTO
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={truncateClassificacao}
+                      tickFormatter={(val) => truncateLabel(val, 20)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -923,13 +925,13 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* GRÁFICO DE JUSTIFICATIVAS - CORRIGIDO (ESPACEMENTO LARGO) */}
-              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
+              {/* GRÁFICO DE JUSTIFICATIVAS - LADO A LADO COM CLASSIFICAÇÃO */}
+              <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 to-sky-500"></div>
                 <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 40)}>
+                <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 40)}>
                   <BarChart
                     data={chartData.justs}
                     layout="vertical"
@@ -939,11 +941,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={160} // LARGURA DO EIXO AUMENTADA
+                      width={160} // LARGURA AUMENTADA PARA CABER O TEXTO
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={truncateJustificativa}
+                      tickFormatter={(val) => truncateLabel(val, 20)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -966,7 +968,7 @@ export default function Index() {
                 </ResponsiveContainer>
               </div>
 
-              {/* GRÁFICO DE PARCELAS - CORRIGIDO (ESPACEMENTO LARGO) */}
+              {/* GRÁFICO DE PARCELAS - ABAIXO OCUPANDO TUDO */}
               <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
@@ -999,11 +1001,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={160} // LARGURA DO EIXO AUMENTADA
+                      width={160} // LARGURA AUMENTADA PARA CABER O TEXTO
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={truncateJustificativa}
+                      tickFormatter={(val) => truncateLabel(val, 20)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
