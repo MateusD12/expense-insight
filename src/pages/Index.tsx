@@ -45,16 +45,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const COLORS = [
-  "#7c3aed", // Roxo (Itaú ..2596)
-  "#06b6d4", // Ciano (Itaú ..6466)
-  "#10b981", // Verde (NuBank ..9531)
-  "#f59e0b",
-  "#ef4444",
-  "#3b82f6",
-  "#8b5cf6",
-  "#ec4899",
-];
+const COLORS = ["#7c3aed", "#06b6d4", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#ec4899"];
 
 const BADGE_COLORS: Record<string, string> = {
   Estudos: "bg-blue-100 text-blue-800",
@@ -71,14 +62,13 @@ const BADGE_COLORS: Record<string, string> = {
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-// Fallback inteligente: se fatura vier null, usa a data da compra para preencher visualmente
-const formatFatura = (faturaStr: string | null, dataStr: string | null) => {
-  const dataBase = faturaStr || dataStr;
-  if (!dataBase) return "-";
+// Retornamos a função para ler APENAS a fatura oficial, sem fallback para a data da compra
+const formatFatura = (d: string | null) => {
+  if (!d) return "-";
   try {
-    return format(new Date(dataBase.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
+    return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
   } catch {
-    return dataBase;
+    return d;
   }
 };
 
@@ -179,9 +169,8 @@ export default function Index() {
   const areaData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
-      const fatBase = e.fatura || e.data;
-      if (fatBase) {
-        const fat = fatBase.slice(0, 7);
+      if (e.fatura) {
+        const fat = e.fatura.slice(0, 7);
         map[fat] = (map[fat] || 0) + Number(e.valor);
       }
     });
@@ -331,7 +320,7 @@ export default function Index() {
               <SelectItem value="all">Todas faturas</SelectItem>
               {unique("fatura").map((f) => (
                 <SelectItem key={f} value={f}>
-                  {formatFatura(f, null)}
+                  {formatFatura(f)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -548,8 +537,8 @@ export default function Index() {
                             {e.classificacao}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-slate-500 text-xs uppercase">
-                          {formatFatura(e.fatura, e.data)}
+                        <TableCell className="text-slate-500 text-xs font-bold uppercase">
+                          {formatFatura(e.fatura)}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2 justify-end">
