@@ -25,7 +25,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Check, Target } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Target } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -62,8 +62,10 @@ const formatFatura = (d: string | null) => {
 export default function Index() {
   const [session, setSession] = useState<any>(null);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-  const [budget, setBudget] = useState<number>(4000);
-  const [tempBudget, setTempBudget] = useState(4000);
+
+  // Teto agora pode ser nulo
+  const [budget, setBudget] = useState<number | null>(null);
+  const [tempBudget, setTempBudget] = useState<number>(0);
 
   // Estados de Auth
   const [authEmail, setAuthEmail] = useState("");
@@ -103,9 +105,10 @@ export default function Index() {
 
   const fetchProfile = async (uid: string) => {
     const { data } = await supabase.from("profiles").select("budget").eq("id", uid).single();
-    if (data) {
+    if (data && data.budget !== null) {
       setBudget(Number(data.budget));
-      setTempBudget(Number(data.budget));
+    } else {
+      setBudget(null);
     }
   };
 
@@ -116,6 +119,8 @@ export default function Index() {
       setBudget(tempBudget);
       setBudgetDialogOpen(false);
       toast.success("Teto atualizado no seu perfil!");
+    } else {
+      toast.error("Erro ao salvar teto.");
     }
   };
 
@@ -369,21 +374,32 @@ export default function Index() {
             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Total Gastos</p>
             <h2 className="text-2xl font-black">{formatCurrency(totalSpent)}</h2>
           </div>
+
           <div
             className={cn(
-              "text-white rounded-2xl p-5 shadow-xl cursor-pointer",
-              totalSpent > budget ? "bg-red-500" : "bg-purple-600",
+              "text-white rounded-2xl p-5 shadow-xl cursor-pointer transition-all",
+              budget === null
+                ? "bg-slate-400 hover:bg-slate-500"
+                : totalSpent > budget
+                  ? "bg-red-500"
+                  : "bg-purple-600",
             )}
-            onClick={() => setBudgetDialogOpen(true)}
+            onClick={() => {
+              setTempBudget(budget || 0);
+              setBudgetDialogOpen(true);
+            }}
           >
             <div className="flex justify-between items-center">
               <p className="text-[10px] font-black uppercase opacity-80 tracking-widest">
-                Saldo do Teto ({formatCurrency(budget)})
+                {budget !== null ? `Saldo do Teto (${formatCurrency(budget)})` : "Sem Teto Definido"}
               </p>
               <Target size={14} />
             </div>
-            <h2 className="text-2xl font-black">{formatCurrency(budget - totalSpent)}</h2>
+            <h2 className="text-2xl font-black mt-1">
+              {budget !== null ? formatCurrency(budget - totalSpent) : "Definir Limite"}
+            </h2>
           </div>
+
           <div className="bg-emerald-500 text-white rounded-2xl p-5 shadow-xl">
             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
             <h2 className="text-2xl font-black">{filteredAndSorted.length}</h2>
@@ -450,7 +466,7 @@ export default function Index() {
               </div>
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
                 <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Top 8 Justificativas (Investimento)
+                  Top 8 Justificativas
                 </h3>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={chartData.justs} margin={{ bottom: 20 }}>
@@ -535,7 +551,7 @@ export default function Index() {
               Ajustar Teto de Gastos
             </DialogTitle>
             <DialogDescription className="text-center font-bold">
-              Defina seu limite mensal para o perfil.
+              Deixe em zero para remover o limite do perfil.
             </DialogDescription>
           </DialogHeader>
           <div className="py-6">
