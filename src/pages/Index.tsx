@@ -69,20 +69,6 @@ const BADGE_COLORS: Record<string, string> = {
   "Vida Pessoal": "bg-rose-100 text-rose-800 border-rose-200",
 };
 
-const HEX_COLORS: Record<string, string> = {
-  Estudos: "#1e40af",
-  Saúde: "#991b1b",
-  Lazer: "#6b21a8",
-  Alimentação: "#9a3412",
-  Compras: "#9d174d",
-  Transporte: "#166534",
-  Assinatura: "#3730a3",
-  Presente: "#854d0e",
-  Casa: "#065f46",
-  Carro: "#155e75",
-  "Vida Pessoal": "#9f1239",
-};
-
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
@@ -434,6 +420,12 @@ export default function Index() {
     );
   };
 
+  // Redutor de texto longo para evitar cortes no eixo Y dos gráficos
+  const truncateText = (text: string, limit: number) => {
+    if (!text) return "";
+    return text.length > limit ? text.substring(0, limit) + "..." : text;
+  };
+
   const hasActiveFilters =
     filters.banco !== "all" ||
     filters.classificacao !== "all" ||
@@ -781,6 +773,10 @@ export default function Index() {
                   <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                 </linearGradient>
+                <linearGradient id="barJusts" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#0ea5e9" />
+                  <stop offset="100%" stopColor="#38bdf8" />
+                </linearGradient>
               </defs>
             </svg>
 
@@ -897,10 +893,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={85}
+                      width={110}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
+                      tickFormatter={(val) => truncateText(val, 14)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -921,9 +918,7 @@ export default function Index() {
                       {chartData.cats.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={HEX_COLORS[entry.name] || "#cbd5e1"}
-                          stroke={filters.classificacao === entry.name ? "#000" : "none"}
-                          strokeWidth={filters.classificacao === entry.name ? 2 : 0}
+                          fill={filters.classificacao === entry.name ? "#6d28d9" : "#8b5cf6"}
                         />
                       ))}
                     </Bar>
@@ -942,10 +937,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={85}
+                      width={140}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
+                      tickFormatter={(val) => truncateText(val, 20)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -959,7 +955,7 @@ export default function Index() {
                     />
                     <Bar
                       dataKey="value"
-                      fill="#0ea5e9"
+                      fill="url(#barJusts)"
                       radius={[0, 6, 6, 0]}
                       className="hover:brightness-110 transition-all"
                     />
@@ -995,10 +991,11 @@ export default function Index() {
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={110}
+                      width={150}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
+                      tickFormatter={(val) => truncateText(val, 20)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
