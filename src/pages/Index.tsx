@@ -12,6 +12,7 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -101,7 +102,12 @@ export default function Index() {
   }, []);
 
   const fetchProfile = async (uid: string) => {
-    const { data } = await supabase.from("profiles").select("budget").eq("id", uid).single();
+    // Usamos 'as any' para o TypeScript ignorar o fato de que a tabela profiles ainda não foi sincronizada no Lovable
+    const { data } = await supabase
+      .from("profiles" as any)
+      .select("budget")
+      .eq("id", uid)
+      .single();
     if (data && data.budget !== null) {
       setBudget(Number(data.budget));
     } else {
@@ -111,7 +117,7 @@ export default function Index() {
 
   const handleSaveBudget = async () => {
     if (!session?.user?.id) return;
-    const { error } = await supabase.from("profiles").upsert({ id: session.user.id, budget: tempBudget });
+    const { error } = await supabase.from("profiles" as any).upsert({ id: session.user.id, budget: tempBudget } as any);
     if (!error) {
       setBudget(tempBudget);
       setBudgetDialogOpen(false);
@@ -171,19 +177,16 @@ export default function Index() {
     reader.readAsText(file);
   };
 
-  // MOTOR DE IMPORTAÇÃO BLINDADO
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
-        // Conversão segura de data (DD/MM/YYYY para YYYY-MM-DD)
         let dataSegura = item.data;
         if (dataSegura && dataSegura.includes("/")) {
           const p = dataSegura.split("/");
           if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
         }
 
-        // Tratamento para fatura vazia não bugar o banco
         let faturaSegura = null;
         if (item.fatura && item.fatura.trim() !== "") {
           faturaSegura = item.fatura.length === 7 ? `${item.fatura}-01` : item.fatura;
@@ -210,7 +213,7 @@ export default function Index() {
       setImportPreview([]);
     } catch (err) {
       console.error(err);
-      toast.error("Erro na importação. O banco rejeitou os dados.");
+      toast.error("Erro na importação. Verifique os dados.");
     }
   };
 
