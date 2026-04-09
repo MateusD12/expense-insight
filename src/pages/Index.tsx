@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { SummaryCards } from "@/components/SummaryCards";
@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Search, Upload, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Upload, ArrowUpDown, ArrowUp, ArrowDown, Target } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -35,6 +35,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 const COLORS = [
   "hsl(220,70%,50%)",
@@ -107,6 +108,16 @@ export default function Index() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: "data", direction: "desc" });
 
+  // --- Lógica do Teto de Gastos ---
+  const [budget, setBudget] = useState<number>(() => {
+    const saved = localStorage.getItem("expense-budget");
+    return saved ? Number(saved) : 3000;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("expense-budget", budget.toString());
+  }, [budget]);
+
   const filteredAndSorted = useMemo(() => {
     let result = allExpenses.filter((e) => {
       if (filters.fatura !== "all" && e.fatura !== filters.fatura) return false;
@@ -129,21 +140,25 @@ export default function Index() {
 
     if (sortConfig.key) {
       result.sort((a, b) => {
-        let aValue = a[sortConfig.key!];
-        let bValue = b[sortConfig.key!];
-
+        const aValue = a[sortConfig.key!];
+        const bValue = b[sortConfig.key!];
         if (aValue === bValue) return 0;
         const reverse = sortConfig.direction === "asc" ? 1 : -1;
-
         if (aValue === null || aValue === undefined) return 1 * reverse;
         if (bValue === null || bValue === undefined) return -1 * reverse;
-
         return aValue < bValue ? -1 * reverse : 1 * reverse;
       });
     }
     return result;
   }, [allExpenses, filters, sortConfig]);
 
+  const totalSpent = useMemo(() => {
+    return filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0);
+  }, [filteredAndSorted]);
+
+  const remainingBudget = budget - totalSpent;
+
+  // --- Handlers ---
   const handleSort = (key: keyof Expense) => {
     setSortConfig((prev) => ({
       key,
@@ -168,6 +183,7 @@ export default function Index() {
       ? unique("cartao")
       : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
+  // --- Chart Data ---
   const areaData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
@@ -208,22 +224,12 @@ export default function Index() {
       .map(([name, valor]) => ({ name, valor: Math.round(valor * 100) / 100 }));
   }, [filteredAndSorted]);
 
-  const topJustificativa = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.justificativa) map[e.justificativa] = (map[e.justificativa] || 0) + Number(e.valor);
-    });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, valor]) => ({ name, valor: Math.round(valor * 100) / 100 }));
-  }, [filteredAndSorted]);
-
   if (isLoading)
     return <div className="flex items-center justify-center h-screen text-muted-foreground">Carregando...</div>;
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-muted/30 pb-10">
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 py-6">
         <div className="mx-auto max-w-7xl">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -252,83 +258,109 @@ export default function Index() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-5 space-y-5">
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar despesa..."
-              className="pl-9"
-              value={filters.search}
-              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            />
+      <div className="mx-auto max-w-7xl px-4 py-5 space-y-6">
+        {/* FILTROS E TETO DE GASTOS */}
+        <div className="grid gap-4 md:grid-cols-12 items-start">
+          {/* Card do Teto de Gastos */}
+          <div className="md:col-span-3 rounded-xl border bg-card p-4 shadow-sm border-l-4 border-l-blue-500">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-muted-foreground uppercase text-[10px] font-bold tracking-wider">
+                <Target size={14} className="text-blue-500" /> Teto do Mês
+              </div>
+              <Input
+                type="number"
+                className="w-20 h-7 text-xs font-bold bg-muted/50 border-none focus-visible:ring-blue-500"
+                value={budget}
+                onChange={(e) => setBudget(Number(e.target.value))}
+              />
+            </div>
+            <div className="space-y-1">
+              <h2
+                className={cn(
+                  "text-2xl font-black tracking-tighter",
+                  remainingBudget < 0 ? "text-red-600" : "text-emerald-600",
+                )}
+              >
+                {formatCurrency(remainingBudget)}
+              </h2>
+              <p className="text-[10px] text-muted-foreground">
+                {remainingBudget < 0 ? "⚠️ ORÇAMENTO ESTOURADO!" : "✅ DISPONÍVEL PARA GASTAR"}
+              </p>
+            </div>
           </div>
-          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Banco" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Bancos</SelectItem>
-              {unique("banco").map((b) => (
-                <SelectItem key={b} value={b}>
-                  {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Cartão" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Cartões</SelectItem>
-              {cartoes.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.classificacao} onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Categorias</SelectItem>
-              {unique("classificacao").map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Fatura" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Faturas</SelectItem>
-              {unique("fatura").map((f) => (
-                <SelectItem key={f} value={f}>
-                  {formatFatura(f)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
+          {/* Barra de Filtros */}
+          <div className="md:col-span-9 flex flex-wrap gap-2 items-center bg-white p-4 rounded-xl border shadow-sm self-stretch">
+            <div className="relative flex-1 min-w-[150px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar despesa..."
+                className="pl-9 bg-muted/20 border-none h-10"
+                value={filters.search}
+                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              />
+            </div>
+            <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
+              <SelectTrigger className="w-[130px] h-10 border-none bg-muted/20">
+                <SelectValue placeholder="Banco" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Bancos</SelectItem>
+                {unique("banco").map((b) => (
+                  <SelectItem key={b} value={b}>
+                    {b}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
+              <SelectTrigger className="w-[130px] h-10 border-none bg-muted/20">
+                <SelectValue placeholder="Cartão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos Cartões</SelectItem>
+                {cartoes.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={filters.classificacao}
+              onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
+            >
+              <SelectTrigger className="w-[140px] h-10 border-none bg-muted/20">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Categorias</SelectItem>
+                {unique("classificacao").map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
+        {/* Resumo Geral */}
         <SummaryCards expenses={filteredAndSorted} />
 
-        <Tabs defaultValue="dashboard">
-          <TabsList>
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="tabela">Tabela</TabsTrigger>
+        {/* Tabs Principais */}
+        <Tabs defaultValue="tabela" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
+            <TabsTrigger value="dashboard">Insights & Gráficos</TabsTrigger>
+            <TabsTrigger value="tabela">Lista Detalhada</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dashboard" className="space-y-5 mt-4">
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="rounded-xl border bg-card p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-foreground mb-2">Gastos por Banco / Cartão</h3>
+          <TabsContent value="dashboard" className="space-y-6 mt-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="rounded-xl border bg-card p-6 shadow-sm">
+                <h3 className="text-sm font-bold text-foreground mb-4 uppercase tracking-widest text-muted-foreground">
+                  Gastos por Banco
+                </h3>
                 <ResponsiveContainer width="100%" height={260}>
                   <PieChart>
                     <Pie
@@ -337,120 +369,127 @@ export default function Index() {
                       nameKey="name"
                       cx="50%"
                       cy="50%"
-                      innerRadius={55}
-                      outerRadius={95}
-                      paddingAngle={2}
+                      innerRadius={60}
+                      outerRadius={90}
+                      paddingAngle={5}
                     >
                       {pieData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="rounded-xl border bg-card p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-foreground mb-2">Evolução por Fatura</h3>
-                <ResponsiveContainer width="100%" height={280}>
+              <div className="rounded-xl border bg-card p-6 shadow-sm">
+                <h3 className="text-sm font-bold text-foreground mb-4 uppercase tracking-widest text-muted-foreground">
+                  Evolução Mensal
+                </h3>
+                <ResponsiveContainer width="100%" height={260}>
                   <AreaChart data={areaData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="name" className="text-xs" />
-                    <YAxis tickFormatter={(v) => `R$${v}`} className="text-xs" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                    <XAxis dataKey="name" className="text-[10px]" axisLine={false} tickLine={false} />
+                    <YAxis tickFormatter={(v) => `R$${v}`} className="text-[10px]" axisLine={false} tickLine={false} />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Area type="monotone" dataKey="valor" stroke="hsl(250,70%,60%)" fillOpacity={0.1} />
+                    <Area
+                      type="monotone"
+                      dataKey="valor"
+                      stroke="hsl(220,70%,50%)"
+                      fill="hsl(220,70%,50%)"
+                      fillOpacity={0.1}
+                      strokeWidth={3}
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <RankedList data={topClassificacao} title="Top 10 — Classificação" />
-              <RankedList data={topJustificativa} title="Top 10 — Justificativa" />
+            <div className="grid gap-6 md:grid-cols-2">
+              <RankedList data={topClassificacao} title="Maiores Gastos por Categoria" />
             </div>
           </TabsContent>
 
-          <TabsContent value="tabela" className="mt-4">
-            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          <TabsContent value="tabela" className="mt-6">
+            <div className="rounded-xl border bg-white shadow-md overflow-hidden">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-muted/30">
                   <TableRow>
-                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("banco")}>
-                      <div className="flex items-center">Banco {getSortIcon("banco")}</div>
+                    <TableHead className="cursor-pointer font-bold" onClick={() => handleSort("banco")}>
+                      <div className="flex items-center">BANCO {getSortIcon("banco")}</div>
                     </TableHead>
-                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("cartao")}>
-                      <div className="flex items-center">Cartão {getSortIcon("cartao")}</div>
+                    <TableHead className="cursor-pointer font-bold" onClick={() => handleSort("cartao")}>
+                      <div className="flex items-center">CARTÃO {getSortIcon("cartao")}</div>
                     </TableHead>
-                    <TableHead
-                      className="text-right cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSort("valor")}
-                    >
-                      <div className="flex items-center justify-end">Valor {getSortIcon("valor")}</div>
+                    <TableHead className="text-right cursor-pointer font-bold" onClick={() => handleSort("valor")}>
+                      <div className="flex items-center justify-end">VALOR {getSortIcon("valor")}</div>
                     </TableHead>
-                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("data")}>
-                      <div className="flex items-center">Data {getSortIcon("data")}</div>
+                    <TableHead className="cursor-pointer font-bold" onClick={() => handleSort("data")}>
+                      <div className="flex items-center">DATA {getSortIcon("data")}</div>
                     </TableHead>
-                    <TableHead>Parcela</TableHead>
-                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("despesa")}>
-                      <div className="flex items-center">Despesa {getSortIcon("despesa")}</div>
+                    <TableHead className="font-bold">PARCELA</TableHead>
+                    <TableHead className="cursor-pointer font-bold" onClick={() => handleSort("despesa")}>
+                      <div className="flex items-center">DESPESA {getSortIcon("despesa")}</div>
                     </TableHead>
-                    <TableHead className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort("justificativa")}>
-                      <div className="flex items-center">Justificativa {getSortIcon("justificativa")}</div>
-                    </TableHead>
-                    <TableHead>Classificação</TableHead>
-                    <TableHead>Fatura</TableHead>
-                    <TableHead className="w-[80px]" />
+                    <TableHead className="font-bold">CATEGORIA</TableHead>
+                    <TableHead className="w-[100px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAndSorted.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                        Nenhum gasto encontrado
+                      <TableCell colSpan={8} className="text-center py-20 text-muted-foreground">
+                        Nenhum gasto encontrado com esses filtros.
                       </TableCell>
                     </TableRow>
                   ) : (
                     filteredAndSorted.map((e) => (
-                      <TableRow key={e.id}>
-                        <TableCell className="font-medium">{e.banco}</TableCell>
-                        <TableCell>••{e.cartao}</TableCell>
-                        <TableCell className="text-right font-mono text-emerald-600">
+                      <TableRow key={e.id} className="hover:bg-muted/20">
+                        <TableCell className="font-semibold">{e.banco}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs font-mono">••{e.cartao}</TableCell>
+                        <TableCell className="text-right font-bold text-blue-600">
                           {formatCurrency(Number(e.valor))}
                         </TableCell>
                         <TableCell>{formatDate(e.data)}</TableCell>
-                        <TableCell>{e.parcela > 0 ? `${e.parcela}/${e.total_parcela}` : "-"}</TableCell>
-                        <TableCell className="max-w-[180px] truncate">{e.despesa || "-"}</TableCell>
-                        <TableCell>{e.justificativa || "-"}</TableCell>
-                        <TableCell>
-                          {e.classificacao ? (
-                            <Badge
-                              className={`${BADGE_COLORS[e.classificacao] || "bg-gray-100 text-gray-800"} border-0 font-medium`}
-                            >
-                              {e.classificacao}
-                            </Badge>
-                          ) : (
-                            "-"
-                          )}
+                        <TableCell className="text-xs">
+                          {e.parcela > 0 ? `${e.parcela}/${e.total_parcela}` : "À vista"}
                         </TableCell>
-                        <TableCell>{formatFatura(e.fatura)}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{e.despesa || "-"}</span>
+                            <span className="text-[10px] text-muted-foreground italic truncate max-w-[150px]">
+                              {e.justificativa}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={cn(
+                              BADGE_COLORS[e.classificacao] || "bg-gray-100 text-gray-800",
+                              "border-none shadow-none text-[10px]",
+                            )}
+                          >
+                            {e.classificacao}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1 justify-end">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600"
                               onClick={() => {
                                 setEditing(e);
                                 setFormOpen(true);
                               }}
                             >
-                              <Pencil className="h-3.5 w-3.5" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-destructive"
+                              className="h-8 w-8 hover:bg-red-50 hover:text-red-600"
                               onClick={() => setDeleting(e.id)}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
                         </TableCell>
@@ -474,13 +513,11 @@ export default function Index() {
               { id: editing.id, ...data },
               {
                 onSuccess: () => toast.success("Gasto atualizado!"),
-                onError: () => toast.error("Erro ao atualizar"),
               },
             );
           } else {
             addExpense.mutate(data, {
               onSuccess: () => toast.success("Gasto adicionado!"),
-              onError: () => toast.error("Erro ao adicionar"),
             });
           }
         }}
@@ -489,24 +526,24 @@ export default function Index() {
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir gasto?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+            <AlertDialogTitle>Excluir permanentemente?</AlertDialogTitle>
+            <AlertDialogDescription>Esta despesa será removida do seu controle financeiro.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>Não, manter</AlertDialogCancel>
             <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
               onClick={() => {
                 if (deleting)
                   deleteExpense.mutate(deleting, {
                     onSuccess: () => {
-                      toast.success("Excluído!");
+                      toast.success("Excluído com sucesso!");
                       setDeleting(null);
                     },
-                    onError: () => toast.error("Erro ao excluir"),
                   });
               }}
             >
-              Excluir
+              Sim, excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
