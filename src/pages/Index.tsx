@@ -104,6 +104,7 @@ export default function Index() {
     dataInicio: "",
     dataFim: "",
   });
+  const [installmentFilter, setInstallmentFilter] = useState("all");
   const [sortConfig, setSortConfig] = useState<{ key: keyof Expense; direction: "asc" | "desc" }>({
     key: "data",
     direction: "desc",
@@ -336,14 +337,12 @@ export default function Index() {
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
-    const cats: Record<string, number> = {};
     const temporal: Record<string, number> = {};
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
       const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
-      cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
 
       if (e.fatura) {
         const f = e.fatura.slice(0, 7);
@@ -353,9 +352,6 @@ export default function Index() {
 
     return {
       banks: Object.entries(banks).map(([name, value]) => ({ name, value })),
-      cats: Object.entries(cats)
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, value]) => ({ name, value })),
       temporal: Object.entries(temporal)
         .sort()
         .map(([f, valor]) => ({
@@ -364,6 +360,29 @@ export default function Index() {
         })),
     };
   }, [filteredAndSorted]);
+
+  const installmentsData = useMemo(() => {
+    let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
+    const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
+    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
+
+    const latestInstallments: Record<string, any> = {};
+    data.forEach((e) => {
+      const key = e.justificativa || e.despesa || "Sem info";
+      if (!latestInstallments[key] || e.parcela > latestInstallments[key].parcela) {
+        latestInstallments[key] = e;
+      }
+    });
+
+    return {
+      data: Object.values(latestInstallments).map((e) => ({
+        name: `${e.justificativa || e.despesa} (${e.parcela}/${e.total_parcela})`,
+        Pagas: e.parcela - 1,
+        Restantes: e.total_parcela - (e.parcela - 1),
+      })),
+      options: uniqueJust,
+    };
+  }, [filteredAndSorted, installmentFilter]);
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
@@ -375,10 +394,6 @@ export default function Index() {
       const isAlreadySelected = prev.banco === bankName && prev.cartao === cardNum;
       return { ...prev, banco: isAlreadySelected ? "all" : bankName, cartao: isAlreadySelected ? "all" : cardNum };
     });
-  };
-
-  const handleCatClick = (data: any) => {
-    setFilters((prev) => ({ ...prev, classificacao: prev.classificacao === data.name ? "all" : data.name }));
   };
 
   const renderSortIcon = (key: string) => {
@@ -692,7 +707,7 @@ export default function Index() {
                 {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
               </p>
             </div>
-            <h2 className="text-xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
+            <h2 className="text-2xl sm:text-3xl font-black mt-1 truncate drop-shadow-sm relative z-10">
               {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
             </h2>
           </div>
@@ -843,17 +858,33 @@ export default function Index() {
               </div>
 
               <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden lg:col-span-2">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-400 to-fuchsia-500"></div>
-                <div className="flex justify-between items-center mb-4 sm:mb-6 mt-1 px-2">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-400 to-orange-500"></div>
+                <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
                   <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
-                    Classificação
+                    Acompanhamento de Parcelas
                   </h3>
-                  <span className="text-[8px] sm:text-[9px] text-blue-500 uppercase font-black bg-blue-50 px-2 py-1 rounded-lg">
-                    Clique p/ Filtrar
-                  </span>
+                  <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
+                    <SelectTrigger className="w-full sm:w-[220px] h-10 text-xs font-bold border-slate-200 bg-slate-50 focus:ring-blue-500 rounded-xl">
+                      <SelectValue placeholder="Filtrar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="font-bold text-blue-600">
+                        Todas as Compras
+                      </SelectItem>
+                      {installmentsData.options.map((o) => (
+                        <SelectItem key={o} value={o}>
+                          {o}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
-                  <BarChart data={chartData.cats} layout="vertical" margin={{ top: 0, right: 30, left: 10, bottom: 0 }}>
+                <ResponsiveContainer width="100%" height={Math.max(200, installmentsData.data.length * 45)}>
+                  <BarChart
+                    data={installmentsData.data}
+                    layout="vertical"
+                    margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+                  >
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
@@ -865,7 +896,6 @@ export default function Index() {
                       tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
-                      formatter={(v: number) => formatCurrency(v)}
                       cursor={{ fill: "#f1f5f9" }}
                       contentStyle={{
                         borderRadius: "16px",
@@ -874,21 +904,23 @@ export default function Index() {
                         fontWeight: "bold",
                       }}
                     />
+                    <Legend wrapperStyle={{ fontSize: "11px", fontWeight: "bold", paddingTop: "10px" }} />
                     <Bar
-                      dataKey="value"
-                      fill="#8b5cf6"
+                      dataKey="Pagas"
+                      stackId="a"
+                      fill="#10b981"
+                      radius={[0, 0, 0, 0]}
+                      barSize={24}
+                      className="hover:opacity-80 transition-all"
+                    />
+                    <Bar
+                      dataKey="Restantes"
+                      stackId="a"
+                      fill="#f59e0b"
                       radius={[0, 6, 6, 0]}
                       barSize={24}
-                      onClick={handleCatClick}
-                      className="cursor-pointer hover:opacity-80 transition-all"
-                    >
-                      {chartData.cats.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={filters.classificacao === entry.name ? "#6d28d9" : "#8b5cf6"}
-                        />
-                      ))}
-                    </Bar>
+                      className="hover:opacity-80 transition-all"
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1036,7 +1068,7 @@ export default function Index() {
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-blue-500 shadow-inner"
+              className="text-4xl font-black text-center h-20 bg-blue-50 text-blue-900 border-none rounded-2xl focus-visible:ring-purple-500 shadow-inner"
             />
           </div>
           <DialogFooter>
