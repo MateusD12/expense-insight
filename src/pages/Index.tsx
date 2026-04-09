@@ -123,7 +123,7 @@ export default function Index() {
     key: "data",
     direction: "desc",
   });
-  const [showFilters, setShowFilters] = useState(false); // Estado para controlar a gaveta de filtros
+  const [showFilters, setShowFilters] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -434,7 +434,6 @@ export default function Index() {
     );
   };
 
-  // Verifica se há algum filtro avançado aplicado para dar destaque no botão
   const hasActiveFilters =
     filters.banco !== "all" ||
     filters.classificacao !== "all" ||
@@ -557,9 +556,7 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-4 sm:space-y-6">
-        {/* Painel de Filtros Inteligente */}
         <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-2 sm:gap-3 relative overflow-hidden transition-all">
-          {/* Linha Superior Sempre Visível */}
           <div className="flex gap-2 sm:gap-3 items-center">
             <Input
               className="flex-1 min-w-0 h-10 sm:h-11 bg-slate-50 hover:bg-slate-100 transition-colors border-none font-bold text-xs sm:text-sm focus-visible:ring-blue-500"
@@ -584,7 +581,6 @@ export default function Index() {
             </Button>
           </div>
 
-          {/* Gaveta de Filtros Avançados Ocultável */}
           {showFilters && (
             <div className="pt-3 border-t border-slate-100 mt-1 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
               <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
@@ -763,16 +759,16 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full flex shadow-sm border border-slate-100 overflow-x-auto">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
