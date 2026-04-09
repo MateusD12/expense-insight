@@ -71,12 +71,14 @@ const BADGE_COLORS: Record<string, string> = {
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-const formatFatura = (d: string | null) => {
-  if (!d) return "-";
+// Fallback inteligente: se fatura vier null, usa a data da compra para preencher visualmente
+const formatFatura = (faturaStr: string | null, dataStr: string | null) => {
+  const dataBase = faturaStr || dataStr;
+  if (!dataBase) return "-";
   try {
-    return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
+    return format(new Date(dataBase.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
   } catch {
-    return d;
+    return dataBase;
   }
 };
 
@@ -109,7 +111,6 @@ export default function Index() {
   });
   const [tempBudget, setTempBudget] = useState(budget);
 
-  // Mapeamento Inteligente: Filtra e Força as parcelas a serem 1 se vierem como 0 do banco antigo
   const filteredAndSorted = useMemo(() => {
     let result = allExpenses
       .map((e) => ({
@@ -178,8 +179,9 @@ export default function Index() {
   const areaData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
-      if (e.fatura) {
-        const fat = e.fatura.slice(0, 7);
+      const fatBase = e.fatura || e.data;
+      if (fatBase) {
+        const fat = fatBase.slice(0, 7);
         map[fat] = (map[fat] || 0) + Number(e.valor);
       }
     });
@@ -260,7 +262,6 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* BARRA DE FILTROS COM JUSTIFICATIVA */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-[200px]">
             <Input
@@ -330,14 +331,13 @@ export default function Index() {
               <SelectItem value="all">Todas faturas</SelectItem>
               {unique("fatura").map((f) => (
                 <SelectItem key={f} value={f}>
-                  {formatFatura(f)}
+                  {formatFatura(f, null)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
 
-        {/* INDICADORES EM GRID */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm flex flex-col justify-center">
             <p className="text-sm font-medium opacity-90">Total em Gastos</p>
@@ -459,7 +459,7 @@ export default function Index() {
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-slate-50">
+                  <TableRow className="bg-slate-50 hover:bg-slate-50">
                     <TableHead
                       className="cursor-pointer font-bold text-slate-600 uppercase text-[10px]"
                       onClick={() => handleSort("banco")}
@@ -492,6 +492,7 @@ export default function Index() {
                       Despesa {getSortIcon("despesa")}
                     </TableHead>
                     <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Categoria</TableHead>
+                    <TableHead className="font-bold text-slate-600 uppercase text-[10px]">Fatura</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
@@ -546,6 +547,9 @@ export default function Index() {
                           >
                             {e.classificacao}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-slate-500 text-xs uppercase">
+                          {formatFatura(e.fatura, e.data)}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2 justify-end">
