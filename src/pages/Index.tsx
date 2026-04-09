@@ -12,7 +12,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -102,7 +101,6 @@ export default function Index() {
   }, []);
 
   const fetchProfile = async (uid: string) => {
-    // Usamos 'as any' para o TypeScript ignorar o fato de que a tabela profiles ainda não foi sincronizada no Lovable
     const { data } = await supabase
       .from("profiles" as any)
       .select("budget")
@@ -153,50 +151,70 @@ export default function Index() {
     }
   };
 
+  // MOTOR DE LEITURA BLINDADO (Corrige o erro de não abrir o CSV)
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (e) => {
-      const text = e.target?.result as string;
-      const lines = text.split("\n").filter((l) => l.trim() !== "");
-      const headers = lines[0].toLowerCase().split(/[;,]/);
-      const parsed = lines.slice(1).map((line) => {
-        const values = line.split(/[;,]/);
-        const obj: any = {};
-        headers.forEach((h, i) => {
-          let v = values[i]?.replace(/"/g, "").trim();
-          if (h.includes("valor")) v = v?.replace(",", ".");
-          obj[h.trim()] = v;
+      try {
+        const text = e.target?.result as string;
+        // Divide lidando com quebras de linha do Windows (\r\n) e do Mac/Linux (\n)
+        const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+
+        if (lines.length < 2) {
+          toast.error("O arquivo parece estar vazio ou não tem cabeçalho.");
+          return;
+        }
+
+        // Limpeza pesada no cabeçalho: remove BOM invisível, aspas e espaços
+        const headers = lines[0]
+          .toLowerCase()
+          .replace(/^\ufeff/, "")
+          .replace(/"/g, "")
+          .split(/[;,]/)
+          .map((h) => h.trim());
+
+        const parsed = lines.slice(1).map((line) => {
+          const values = line.split(/[;,]/);
+          const obj: any = {};
+          headers.forEach((h, i) => {
+            let v = values[i]?.replace(/"/g, "").trim();
+            if (h.includes("valor") && v) v = v.replace(",", ".");
+            obj[h] = v;
+          });
+          return obj;
         });
-        return obj;
-      });
-      setImportPreview(parsed);
-      setShowImportDialog(true);
+
+        setImportPreview(parsed);
+        setShowImportDialog(true);
+      } catch (err) {
+        console.error("Erro ao ler o arquivo:", err);
+        toast.error("Erro ao ler o formato deste CSV.");
+      }
     };
     reader.readAsText(file);
+
+    // O PULO DO GATO: Reseta o botão para o navegador permitir que você escolha o mesmo arquivo de novo
+    event.target.value = "";
   };
 
-  // MOTOR DE IMPORTAÇÃO BLINDADO
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
-        // 1. Conversão segura de data (DD/MM/YYYY para YYYY-MM-DD)
         let dataSegura = item.data;
         if (dataSegura && dataSegura.includes("/")) {
           const p = dataSegura.split("/");
           if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
         }
 
-        // 2. Tratamento para fatura vazia não bugar o banco
         let faturaSegura = null;
         if (item.fatura && item.fatura.trim() !== "") {
           faturaSegura = item.fatura.length === 7 ? `${item.fatura}-01` : item.fatura;
         }
 
-        // 3. Montando o Payload APENAS com as colunas que o banco aceita
-        // Isso ignora IDs antigos, Total_Parcelas (com 's') ou outras colunas de lixo do CSV
         const payload = {
           banco: item.banco?.trim() || "Desconhecido",
           cartao: item.cartao?.trim() || "",
@@ -217,7 +235,7 @@ export default function Index() {
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
-      console.error("Erro detalhado da importação:", err);
+      console.error(err);
       toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
