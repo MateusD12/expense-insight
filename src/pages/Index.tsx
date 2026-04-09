@@ -420,7 +420,6 @@ export default function Index() {
     );
   };
 
-  // Redutor de texto longo para evitar cortes no eixo Y dos gráficos
   const truncateText = (text: string, limit: number) => {
     if (!text) return "";
     return text.length > limit ? text.substring(0, limit) + "..." : text;
@@ -751,35 +750,22 @@ export default function Index() {
         </div>
 
         <Tabs defaultValue="dashboard">
-          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full sm:w-fit flex shadow-sm border border-slate-100">
+          <TabsList className="bg-white p-1.5 mb-4 sm:mb-6 rounded-2xl w-full flex shadow-sm border border-slate-100 overflow-x-auto">
             <TabsTrigger
               value="dashboard"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Dashboard
             </TabsTrigger>
             <TabsTrigger
               value="tabela"
-              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
+              className="px-4 sm:px-8 py-2 font-black rounded-xl flex-1 text-slate-500 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 transition-colors"
             >
               Tabela
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-4 sm:space-y-6">
-            <svg width="0" height="0">
-              <defs>
-                <linearGradient id="colorEvolucao" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="barJusts" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#0ea5e9" />
-                  <stop offset="100%" stopColor="#38bdf8" />
-                </linearGradient>
-              </defs>
-            </svg>
-
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
               <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
@@ -869,8 +855,9 @@ export default function Index() {
                       type="monotone"
                       dataKey="valor"
                       stroke="#3b82f6"
-                      fill="url(#colorEvolucao)"
-                      strokeWidth={4}
+                      fill="#3b82f6"
+                      fillOpacity={0.1}
+                      strokeWidth={3}
                       activeDot={{ r: 6, fill: "#1e3a8a", stroke: "#fff", strokeWidth: 2 }}
                     />
                   </AreaChart>
@@ -887,17 +874,17 @@ export default function Index() {
                     Clique p/ Filtrar
                   </span>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(260, chartData.cats.length * 35)}>
-                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0 }}>
+                <ResponsiveContainer width="100%" height={Math.max(200, chartData.cats.length * 40)}>
+                  <BarChart data={chartData.cats} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={110}
+                      width={95}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 14)}
+                      tickFormatter={(val) => truncateText(val, 12)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -911,9 +898,11 @@ export default function Index() {
                     />
                     <Bar
                       dataKey="value"
+                      fill="#8b5cf6"
                       radius={[0, 6, 6, 0]}
+                      barSize={24}
                       onClick={handleCatClick}
-                      className="cursor-pointer hover:brightness-110 transition-all"
+                      className="cursor-pointer hover:opacity-80 transition-all"
                     >
                       {chartData.cats.map((entry, index) => (
                         <Cell
@@ -931,17 +920,17 @@ export default function Index() {
                 <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
                   Top 10 Justificativas
                 </h3>
-                <ResponsiveContainer width="100%" height={Math.max(260, chartData.justs.length * 35)}>
-                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0 }}>
+                <ResponsiveContainer width="100%" height={Math.max(200, chartData.justs.length * 40)}>
+                  <BarChart data={chartData.justs} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={140}
+                      width={130}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 20)}
+                      tickFormatter={(val) => truncateText(val, 18)}
                     />
                     <Tooltip
                       formatter={(v: number) => formatCurrency(v)}
@@ -955,9 +944,10 @@ export default function Index() {
                     />
                     <Bar
                       dataKey="value"
-                      fill="url(#barJusts)"
+                      fill="#0ea5e9"
                       radius={[0, 6, 6, 0]}
-                      className="hover:brightness-110 transition-all"
+                      barSize={24}
+                      className="hover:opacity-80 transition-opacity"
                     />
                   </BarChart>
                 </ResponsiveContainer>
@@ -985,17 +975,17 @@ export default function Index() {
                     </SelectContent>
                   </Select>
                 </div>
-                <ResponsiveContainer width="100%" height={Math.max(260, installmentsData.data.length * 45)}>
-                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 0 }}>
+                <ResponsiveContainer width="100%" height={Math.max(200, installmentsData.data.length * 45)}>
+                  <BarChart data={installmentsData.data} layout="vertical" margin={{ left: 0, right: 20 }}>
                     <XAxis type="number" hide />
                     <YAxis
                       dataKey="name"
                       type="category"
-                      width={150}
+                      width={130}
                       tick={{ fontSize: 10, fontWeight: "bold", fill: "#475569" }}
                       axisLine={false}
                       tickLine={false}
-                      tickFormatter={(val) => truncateText(val, 20)}
+                      tickFormatter={(val) => truncateText(val, 18)}
                     />
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
@@ -1012,14 +1002,16 @@ export default function Index() {
                       stackId="a"
                       fill="#10b981"
                       radius={[0, 0, 0, 0]}
-                      className="hover:brightness-110 transition-all"
+                      barSize={24}
+                      className="hover:opacity-80 transition-opacity"
                     />
                     <Bar
                       dataKey="Restantes"
                       stackId="a"
                       fill="#f59e0b"
                       radius={[0, 6, 6, 0]}
-                      className="hover:brightness-110 transition-all"
+                      barSize={24}
+                      className="hover:opacity-80 transition-opacity"
                     />
                   </BarChart>
                 </ResponsiveContainer>
