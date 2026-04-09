@@ -1,113 +1,236 @@
-import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import React, { useState, useMemo, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import type { Expense, ExpenseInsert } from "@/hooks/useExpenses";
+import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-interface Props {
+interface ExpenseFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: ExpenseInsert) => void;
   initialData?: Expense | null;
+  onSubmit: (data: any) => void;
 }
 
-const defaultForm: ExpenseInsert = {
-  banco: "",
-  cartao: "",
-  valor: 0,
-  data: null,
-  parcela: 0,
-  total_parcela: 0,
-  despesa: "",
-  justificativa: "",
-  classificacao: "",
-  fatura: null,
-};
+export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: ExpenseFormProps) {
+  const { data: allExpenses = [] } = useExpenses();
 
-export function ExpenseForm({ open, onOpenChange, onSubmit, initialData }: Props) {
-  const [form, setForm] = useState<ExpenseInsert>(defaultForm);
+  // Estados do formulário
+  const [formData, setFormData] = useState<Partial<Expense>>({
+    banco: "",
+    cartao: "",
+    valor: 0,
+    data: new Date().toISOString().split("T")[0],
+    despesa: "",
+    justificativa: "",
+    classificacao: "",
+    parcela: 1,
+    total_parcela: 1,
+    fatura: new Date().toISOString().slice(0, 7),
+  });
 
+  // Atualiza quando abre para edição
   useEffect(() => {
     if (initialData) {
-      setForm({
-        banco: initialData.banco,
-        cartao: initialData.cartao,
-        valor: initialData.valor,
-        data: initialData.data,
-        parcela: initialData.parcela,
-        total_parcela: initialData.total_parcela,
-        despesa: initialData.despesa,
-        justificativa: initialData.justificativa,
-        classificacao: initialData.classificacao,
-        fatura: initialData.fatura,
-      });
+      setFormData(initialData);
     } else {
-      setForm(defaultForm);
+      setFormData({
+        banco: "",
+        cartao: "",
+        valor: 0,
+        data: new Date().toISOString().split("T")[0],
+        despesa: "",
+        justificativa: "",
+        classificacao: "",
+        parcela: 1,
+        total_parcela: 1,
+        fatura: new Date().toISOString().slice(0, 7),
+      });
     }
   }, [initialData, open]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(form);
-    onOpenChange(false);
+  // Função para pegar valores únicos das despesas existentes
+  const getUniqueValues = (key: keyof Expense) => {
+    return Array.from(new Set(allExpenses.map((e) => e[key]).filter(Boolean))).sort() as string[];
   };
 
-  const set = (key: keyof ExpenseInsert, value: string | number | null) =>
-    setForm((f) => ({ ...f, [key]: value }));
+  // Lógica para detectar se é uma despesa recorrente/parcelada
+  const handleDespesaSelect = (nome: string) => {
+    const despesaExistente = allExpenses.find((e) => e.despesa === nome);
+    if (despesaExistente) {
+      const proximaParcela =
+        despesaExistente.parcela < despesaExistente.total_parcela ? despesaExistente.parcela + 1 : 1;
+
+      setFormData((prev) => ({
+        ...prev,
+        despesa: nome,
+        valor: despesaExistente.valor,
+        classificacao: despesaExistente.classificacao,
+        banco: despesaExistente.banco,
+        cartao: despesaExistente.cartao,
+        justificativa: despesaExistente.justificativa,
+        total_parcela: despesaExistente.total_parcela,
+        parcela: proximaParcela,
+      }));
+    } else {
+      setFormData((prev) => ({ ...prev, despesa: nome }));
+    }
+  };
+
+  // Componente interno para Select com Busca e "Novo"
+  const ComboboxField = ({ label, value, options, onChange, placeholder }: any) => {
+    const [openCombo, setOpenCombo] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+
+    return (
+      <div className="space-y-2 flex flex-col">
+        <Label>{label}</Label>
+        <Popover open={openCombo} onOpenChange={setOpenCombo}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" role="combobox" className="justify-between font-normal">
+              {value || `Selecionar ${label}...`}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0">
+            <Command>
+              <CommandInput placeholder={`Buscar ${label}...`} onValueChange={setSearchValue} />
+              <CommandList>
+                <CommandEmpty className="p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-blue-600"
+                    onClick={() => {
+                      onChange(searchValue);
+                      setOpenCombo(false);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Adicionar "{searchValue}"
+                  </Button>
+                </CommandEmpty>
+                <CommandGroup>
+                  {options.map((option: string) => (
+                    <CommandItem
+                      key={option}
+                      onSelect={() => {
+                        onChange(option);
+                        setOpenCombo(false);
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", value === option ? "opacity-100" : "opacity-0")} />
+                      {option}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{initialData ? "Editar Gasto" : "Novo Gasto"}</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3">
-          <div>
-            <Label>Banco</Label>
-            <Input value={form.banco} onChange={(e) => set("banco", e.target.value)} required />
+
+        <div className="grid gap-4 py-4">
+          {/* Nome da Despesa com Sugestão */}
+          <ComboboxField
+            label="Despesa"
+            value={formData.despesa}
+            options={getUniqueValues("despesa")}
+            onChange={handleDespesaSelect}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Valor</Label>
+              <Input
+                type="number"
+                value={formData.valor}
+                onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data</Label>
+              <Input
+                type="date"
+                value={formData.data}
+                onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+              />
+            </div>
           </div>
-          <div>
-            <Label>Cartão</Label>
-            <Input value={form.cartao} onChange={(e) => set("cartao", e.target.value)} required />
+
+          <div className="grid grid-cols-2 gap-4">
+            <ComboboxField
+              label="Banco"
+              value={formData.banco}
+              options={getUniqueValues("banco")}
+              onChange={(v: string) => setFormData({ ...formData, banco: v })}
+            />
+            <ComboboxField
+              label="Cartão"
+              value={formData.cartao}
+              options={getUniqueValues("cartao")}
+              onChange={(v: string) => setFormData({ ...formData, cartao: v })}
+            />
           </div>
-          <div>
-            <Label>Valor (R$)</Label>
-            <Input type="number" step="0.01" value={form.valor} onChange={(e) => set("valor", parseFloat(e.target.value) || 0)} required />
+
+          <ComboboxField
+            label="Categoria"
+            value={formData.classificacao}
+            options={getUniqueValues("classificacao")}
+            onChange={(v: string) => setFormData({ ...formData, classificacao: v })}
+          />
+
+          <ComboboxField
+            label="Justificativa"
+            value={formData.justificativa}
+            options={getUniqueValues("justificativa")}
+            onChange={(v: string) => setFormData({ ...formData, justificativa: v })}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Parcela Atual</Label>
+              <Input
+                type="number"
+                value={formData.parcela}
+                onChange={(e) => setFormData({ ...formData, parcela: Number(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Total de Parcelas</Label>
+              <Input
+                type="number"
+                value={formData.total_parcela}
+                onChange={(e) => setFormData({ ...formData, total_parcela: Number(e.target.value) })}
+              />
+            </div>
           </div>
-          <div>
-            <Label>Data</Label>
-            <Input type="date" value={form.data || ""} onChange={(e) => set("data", e.target.value || null)} />
-          </div>
-          <div>
-            <Label>Parcela</Label>
-            <Input type="number" value={form.parcela} onChange={(e) => set("parcela", parseInt(e.target.value) || 0)} />
-          </div>
-          <div>
-            <Label>Total Parcelas</Label>
-            <Input type="number" value={form.total_parcela} onChange={(e) => set("total_parcela", parseInt(e.target.value) || 0)} />
-          </div>
-          <div className="col-span-2">
-            <Label>Despesa</Label>
-            <Input value={form.despesa || ""} onChange={(e) => set("despesa", e.target.value)} />
-          </div>
-          <div className="col-span-2">
-            <Label>Justificativa</Label>
-            <Input value={form.justificativa || ""} onChange={(e) => set("justificativa", e.target.value)} />
-          </div>
-          <div>
-            <Label>Classificação</Label>
-            <Input value={form.classificacao || ""} onChange={(e) => set("classificacao", e.target.value)} />
-          </div>
-          <div>
-            <Label>Fatura</Label>
-            <Input type="date" value={form.fatura || ""} onChange={(e) => set("fatura", e.target.value || null)} />
-          </div>
-          <div className="col-span-2 flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit">Salvar</Button>
-          </div>
-        </form>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => {
+              onSubmit(formData);
+              onOpenChange(false);
+            }}
+          >
+            Salvar Gasto
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
