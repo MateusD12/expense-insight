@@ -34,8 +34,6 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
 
   useEffect(() => {
     if (initialData) {
-      // Garante que a fatura tenha apenas 7 caracteres (YYYY-MM) pro input não bugar
-      // Se não tiver fatura, assume o mês da data de compra
       const faturaSegura = initialData.fatura
         ? initialData.fatura.substring(0, 7)
         : initialData.data
@@ -163,7 +161,6 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         </DialogHeader>
 
         <div className="grid gap-5 py-2">
-          {/* Calculadora de Valores */}
           <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4 w-full">
             <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm">
               <Calculator size={16} /> Valores e Parcelas
@@ -201,6 +198,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
                   <Input
                     type="number"
+                    step="0.01"
                     value={formData.valor || ""}
                     onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
                     className="pl-9 font-black text-blue-600 text-lg border-blue-300 focus-visible:ring-blue-500 bg-white w-full"
@@ -215,9 +213,15 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
                   <Input
                     type="number"
-                    value={(formData.valor || 0) * (formData.total_parcela || 1) || ""}
+                    step="0.01"
+                    value={
+                      formData.valor ? Number(((formData.valor || 0) * (formData.total_parcela || 1)).toFixed(2)) : ""
+                    }
                     onChange={(e) =>
-                      setFormData({ ...formData, valor: Number(e.target.value) / (formData.total_parcela || 1) })
+                      setFormData({
+                        ...formData,
+                        valor: Number((Number(e.target.value) / (formData.total_parcela || 1)).toFixed(2)),
+                      })
                     }
                     className="pl-9 font-black text-slate-700 text-lg bg-white border-slate-200 w-full"
                   />
