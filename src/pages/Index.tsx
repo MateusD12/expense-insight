@@ -98,13 +98,14 @@ export default function Index() {
     }
   };
 
-  // --- FUNÇÃO DE EXPORTAÇÃO TEMPORÁRIA ---
+  // --- FUNÇÃO DE EXPORTAÇÃO AJUSTADA PARA EXCEL BRASIL ---
   const exportToCSV = () => {
     if (allExpenses.length === 0) {
       toast.error("Não há dados para exportar.");
       return;
     }
 
+    // Cabeçalhos
     const headers = [
       "ID",
       "Banco",
@@ -118,22 +119,33 @@ export default function Index() {
       "Total_Parcelas",
       "Fatura",
     ];
-    const rows = allExpenses.map((e) => [
-      e.id,
-      e.banco,
-      e.cartao,
-      e.valor,
-      e.data,
-      `"${e.despesa}"`,
-      e.classificacao,
-      `"${e.justificativa}"`,
-      e.parcela,
-      e.total_parcela,
-      e.fatura,
-    ]);
 
-    const csvContent = [headers, ...rows].map((e) => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const rows = allExpenses.map((e) => {
+      // Converte o ponto em vírgula para o Excel reconhecer como número/moeda
+      const valorFormatado = e.valor.toString().replace(".", ",");
+
+      return [
+        e.id,
+        e.banco,
+        e.cartao,
+        valorFormatado,
+        e.data,
+        `"${e.despesa}"`,
+        e.classificacao,
+        `"${e.justificativa}"`,
+        e.parcela,
+        e.total_parcela,
+        e.fatura,
+      ];
+    });
+
+    // Usamos o ponto-e-vírgula (;) como separador para não conflitar com a vírgula decimal
+    const csvContent = [headers, ...rows].map((e) => e.join(";")).join("\n");
+
+    // Adicionamos o BOM (Byte Order Mark) para o Excel entender que o arquivo é UTF-8 e não quebrar acentos
+    const BOM = "\uFEFF";
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
+
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
 
@@ -144,7 +156,7 @@ export default function Index() {
     link.click();
     document.body.removeChild(link);
 
-    toast.success("Backup baixado com sucesso!");
+    toast.success("Backup ajustado baixado!");
   };
 
   const filteredAndSorted = useMemo(() => {
