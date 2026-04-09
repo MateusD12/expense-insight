@@ -163,11 +163,7 @@ export default function Index() {
       try {
         const text = e.target?.result as string;
         const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-
-        if (lines.length < 2) {
-          toast.error("O arquivo parece estar vazio ou não tem cabeçalho.");
-          return;
-        }
+        if (lines.length < 2) return toast.error("O arquivo parece estar vazio.");
 
         const headers = lines[0]
           .toLowerCase()
@@ -175,7 +171,6 @@ export default function Index() {
           .replace(/"/g, "")
           .split(";")
           .map((h) => h.trim());
-
         const parsed = lines.slice(1).map((line) => {
           const values = line.split(";");
           const obj: any = {};
@@ -190,7 +185,6 @@ export default function Index() {
         setImportPreview(parsed);
         setShowImportDialog(true);
       } catch (err) {
-        console.error("Erro ao ler o arquivo:", err);
         toast.error("Erro ao ler o formato deste CSV.");
       }
     };
@@ -212,9 +206,7 @@ export default function Index() {
 
         let faturaSegura = null;
         const faturaRaw = safeString(item.fatura);
-        if (faturaRaw !== "") {
-          faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
-        }
+        if (faturaRaw !== "") faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
 
         const payload = {
           banco: safeString(item.banco) || "Desconhecido",
@@ -229,14 +221,12 @@ export default function Index() {
           fatura: faturaSegura,
           user_id: session.user.id,
         };
-
         await addExpense.mutateAsync(payload);
       }
       toast.success("Tudo importado com sucesso!");
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
-      console.error(err);
       toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
@@ -268,10 +258,8 @@ export default function Index() {
         const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
-
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-
         const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
         const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
 
@@ -297,8 +285,11 @@ export default function Index() {
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
-      const bankKey = `${e.banco} ${e.cartao ? "••" + e.cartao : ""}`.trim();
+
+      // Agrupando PIZZA apenas pelo Banco (Modelo Antigo Limpo)
+      const bankKey = e.banco || "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
+
       cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
       justs[e.justificativa || "Outros"] = (justs[e.justificativa || "Outros"] || 0) + val;
 
@@ -330,9 +321,7 @@ export default function Index() {
     let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
     const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
 
-    if (installmentFilter !== "all") {
-      data = data.filter((e) => e.justificativa === installmentFilter);
-    }
+    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
 
     const latestInstallments: Record<string, any> = {};
     data.forEach((e) => {
@@ -353,6 +342,16 @@ export default function Index() {
   }, [filteredAndSorted, installmentFilter]);
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
+
+  // --- FUNÇÕES DE CLIQUE PARA FILTRO INTERATIVO ---
+  const handleBankClick = (data: any) => {
+    // Se clicar no mesmo, ele limpa. Se clicar num novo, ele filtra.
+    setFilters((prev) => ({ ...prev, banco: prev.banco === data.name ? "all" : data.name }));
+  };
+
+  const handleCatClick = (data: any) => {
+    setFilters((prev) => ({ ...prev, classificacao: prev.classificacao === data.name ? "all" : data.name }));
+  };
 
   if (isCheckingAuth)
     return (
@@ -464,7 +463,6 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* Painel de Filtros Completo */}
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
           <div className="flex flex-wrap gap-3">
             <Input
@@ -481,7 +479,7 @@ export default function Index() {
                 <SelectItem value="all">Todas Faturas</SelectItem>
                 {unique("fatura").map((f) => (
                   <SelectItem key={f} value={f}>
-                    {formatFatura(f)}
+                    {formatFatura(f as string)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -572,7 +570,6 @@ export default function Index() {
           </div>
         </div>
 
-        {/* Cards de Indicadores */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-xl">
             <p className="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Total Gastos</p>
@@ -631,9 +628,10 @@ export default function Index() {
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Divisão por Banco
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Divisão por Banco</h3>
+                  <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
+                </div>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
@@ -646,9 +644,17 @@ export default function Index() {
                       outerRadius={90}
                       paddingAngle={2}
                       label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                      onClick={handleBankClick}
+                      className="cursor-pointer"
                     >
-                      {chartData.banks.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      {chartData.banks.map((entry, i) => (
+                        <Cell
+                          key={`cell-${i}`}
+                          fill={COLORS[i % COLORS.length]}
+                          className="hover:opacity-80 transition-opacity"
+                          stroke={filters.banco === entry.name ? "#000" : "none"}
+                          strokeWidth={2}
+                        />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
@@ -685,9 +691,12 @@ export default function Index() {
               </div>
 
               <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <h3 className="text-[10px] font-black text-slate-400 mb-6 uppercase tracking-widest">
-                  Classificação de Gastos
-                </h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Classificação de Gastos
+                  </h3>
+                  <span className="text-[9px] text-slate-300 uppercase font-bold">Clique para filtrar</span>
+                </div>
                 <ResponsiveContainer width="100%" height={Math.max(250, chartData.cats.length * 30)}>
                   <BarChart data={chartData.cats} layout="vertical" margin={{ left: 20 }}>
                     <XAxis type="number" hide />
@@ -700,7 +709,20 @@ export default function Index() {
                       tickLine={false}
                     />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                    <Bar
+                      dataKey="value"
+                      fill="#8b5cf6"
+                      radius={[0, 4, 4, 0]}
+                      onClick={handleCatClick}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      {chartData.cats.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={filters.classificacao === entry.name ? "#6d28d9" : "#8b5cf6"}
+                        />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
