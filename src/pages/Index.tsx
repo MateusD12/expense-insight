@@ -74,7 +74,7 @@ const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "c
 const formatFatura = (d: string | null) => {
   if (!d) return "-";
   try {
-    return format(new Date(d + "T12:00:00"), "MMM/yy", { locale: ptBR });
+    return format(new Date(d + (d.length === 7 ? "-01T12:00:00" : "T12:00:00")), "MMM/yy", { locale: ptBR });
   } catch {
     return d;
   }
@@ -118,15 +118,22 @@ export default function Index() {
       const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
       const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
-      const matchFatura = filters.fatura === "all" || e.fatura === filters.fatura;
+
+      // Ajuste no filtro de fatura para considerar YYYY-MM
+      const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
+      const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
 
       let matchDate = true;
       if (filters.dataInicio && filters.dataFim && e.data) {
-        const date = parseISO(e.data);
-        matchDate = isWithinInterval(date, {
-          start: parseISO(filters.dataInicio),
-          end: parseISO(filters.dataFim),
-        });
+        try {
+          const date = parseISO(e.data);
+          matchDate = isWithinInterval(date, {
+            start: parseISO(filters.dataInicio),
+            end: parseISO(filters.dataFim),
+          });
+        } catch (err) {
+          // Ignora erro de data inválida na filtragem
+        }
       }
 
       return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura && matchDate;
@@ -143,7 +150,17 @@ export default function Index() {
   }, [allExpenses, filters, sortConfig]);
 
   const unique = (key: keyof Expense) =>
-    [...new Set(allExpenses.map((e) => e[key]).filter(Boolean) as string[])].sort();
+    [
+      ...new Set(
+        allExpenses
+          .map((e) => {
+            if (key === "fatura" && e[key]) return (e[key] as string).slice(0, 7);
+            return e[key];
+          })
+          .filter(Boolean) as string[],
+      ),
+    ].sort();
+
   const cartoes =
     filters.banco === "all"
       ? unique("cartao")
@@ -161,12 +178,15 @@ export default function Index() {
   const areaData = useMemo(() => {
     const map: Record<string, number> = {};
     filteredAndSorted.forEach((e) => {
-      if (e.fatura) map[e.fatura] = (map[e.fatura] || 0) + Number(e.valor);
+      if (e.fatura) {
+        const fat = e.fatura.slice(0, 7);
+        map[fat] = (map[fat] || 0) + Number(e.valor);
+      }
     });
     return Object.entries(map)
       .sort()
       .map(([f, valor]) => ({
-        name: format(new Date(f + "T12:00:00"), "MMM/yy", { locale: ptBR }),
+        name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
         valor: Math.round(valor * 100) / 100,
       }));
   }, [filteredAndSorted]);
@@ -519,7 +539,7 @@ export default function Index() {
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
             <DialogTitle>Ajustar Teto Mensal</DialogTitle>
-            <DialogDescription>Defina o valor máximo que você deseja gastar este mês.</DialogDescription>
+            <DialogDescription>Defina o seu limite de gastos.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -549,9 +569,7 @@ export default function Index() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Isso excluirá permanentemente o gasto do seu controle.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Esta ação excluirá permanentemente o gasto.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -560,12 +578,8 @@ export default function Index() {
                 if (deleting) {
                   deleteExpense.mutate(deleting, {
                     onSuccess: () => {
-                      toast.success("Gasto excluído com sucesso!");
+                      toast.success("Gasto excluído!");
                       setDeleting(null);
-                    },
-                    onError: (error) => {
-                      console.error("Erro ao excluir:", error);
-                      toast.error("Ocorreu um erro ao excluir o gasto.");
                     },
                   });
                 }
@@ -577,45 +591,48 @@ export default function Index() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <ExpenseForm 
-        open={formOpen} 
-        onOpenChange={setFormOpen} 
-        initialData={editing} 
+      <ExpenseForm
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        initialData={editing}
         onSubmit={(data) => {
-          // 1. Criamos um objeto "limpo" EXATAMENTE com as colunas que vimos na sua tabela
-          // Se alguma dessas colunas não existir no seu Supabase, você precisa removê-la daqui!
+          const faturaSegura = data.fatura && data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura;
+
           const payloadLimpo = {
             banco: data.banco || "",
             cartao: data.cartao || "",
             valor: Number(data.valor) || 0,
-            data: data.data || new Date().toISOString().split('T')[0],
+            data: data.data || new Date().toISOString().split("T")[0],
             despesa: data.despesa || "",
             classificacao: data.classificacao || "",
             justificativa: data.justificativa || "",
             parcela: Number(data.parcela) || 0,
             total_parcela: Number(data.total_parcela) || 0,
-            // A CORREÇÃO ESTÁ AQUI: garantindo o formato YYYY-MM-DD
-            fatura: data.fatura && data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura || "", 
+            fatura: faturaSegura || null,
           };
 
           if (editing) {
-            updateExpense.mutate({ id: editing.id, ...payloadLimpo }, {
-              onSuccess: () => toast.success("Gasto atualizado!"),
-              onError: (error) => {
-                 console.error("Erro UPDATE:", error);
-                 toast.error("Erro ao atualizar o gasto. Verifique os tipos de dados.");
+            updateExpense.mutate(
+              { id: editing.id, ...payloadLimpo },
+              {
+                onSuccess: () => toast.success("Gasto atualizado!"),
+                onError: (error) => {
+                  console.error(error);
+                  toast.error("Erro ao atualizar o gasto.");
+                },
               },
-            });
+            );
           } else {
             addExpense.mutate(payloadLimpo, {
               onSuccess: () => toast.success("Gasto adicionado!"),
               onError: (error) => {
-                 console.error("Erro INSERT:", error);
-                 // Adicionamos um alert temporário pra você ver o erro exato na tela se falhar de novo
-                 alert("Erro do Supabase: Verifique se sua tabela 'expenses' tem TODAS essas colunas: banco, cartao, valor, data, despesa, classificacao, justificativa, parcela, total_parcela, fatura.");
-                 toast.error("Erro ao adicionar o gasto.");
+                console.error(error);
+                toast.error("Erro ao adicionar o gasto.");
               },
             });
           }
-        }} 
+        }}
       />
+    </div>
+  );
+}
