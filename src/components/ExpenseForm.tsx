@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ExpenseFormProps {
@@ -19,7 +19,6 @@ interface ExpenseFormProps {
 export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: ExpenseFormProps) {
   const { data: allExpenses = [] } = useExpenses();
 
-  // Estados do formulário
   const [formData, setFormData] = useState<Partial<Expense>>({
     banco: "",
     cartao: "",
@@ -33,10 +32,13 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
     fatura: new Date().toISOString().slice(0, 7),
   });
 
-  // Atualiza quando abre para edição
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        ...initialData,
+        parcela: initialData.parcela || 1,
+        total_parcela: initialData.total_parcela || 1,
+      });
     } else {
       setFormData({
         banco: "",
@@ -53,17 +55,16 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
     }
   }, [initialData, open]);
 
-  // Função para pegar valores únicos das despesas existentes
   const getUniqueValues = (key: keyof Expense) => {
     return Array.from(new Set(allExpenses.map((e) => e[key]).filter(Boolean))).sort() as string[];
   };
 
-  // Lógica para detectar se é uma despesa recorrente/parcelada
   const handleDespesaSelect = (nome: string) => {
     const despesaExistente = allExpenses.find((e) => e.despesa === nome);
     if (despesaExistente) {
-      const proximaParcela =
-        despesaExistente.parcela < despesaExistente.total_parcela ? despesaExistente.parcela + 1 : 1;
+      const pAtual = despesaExistente.parcela || 1;
+      const pTotal = despesaExistente.total_parcela || 1;
+      const proximaParcela = pAtual < pTotal ? pAtual + 1 : 1;
 
       setFormData((prev) => ({
         ...prev,
@@ -73,7 +74,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         banco: despesaExistente.banco,
         cartao: despesaExistente.cartao,
         justificativa: despesaExistente.justificativa,
-        total_parcela: despesaExistente.total_parcela,
+        total_parcela: pTotal,
         parcela: proximaParcela,
       }));
     } else {
@@ -81,18 +82,21 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
     }
   };
 
-  // Componente interno para Select com Busca e "Novo"
-  const ComboboxField = ({ label, value, options, onChange, placeholder }: any) => {
+  const ComboboxField = ({ label, value, options, onChange }: any) => {
     const [openCombo, setOpenCombo] = useState(false);
     const [searchValue, setSearchValue] = useState("");
 
     return (
       <div className="space-y-2 flex flex-col">
-        <Label>{label}</Label>
+        <Label className="text-xs font-bold text-slate-500 uppercase">{label}</Label>
         <Popover open={openCombo} onOpenChange={setOpenCombo}>
           <PopoverTrigger asChild>
-            <Button variant="outline" role="combobox" className="justify-between font-normal">
-              {value || `Selecionar ${label}...`}
+            <Button
+              variant="outline"
+              role="combobox"
+              className="justify-between font-normal bg-slate-50 border-slate-200"
+            >
+              {value || `Selecionar...`}
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
@@ -121,7 +125,9 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
                         setOpenCombo(false);
                       }}
                     >
-                      <Check className={cn("mr-2 h-4 w-4", value === option ? "opacity-100" : "opacity-0")} />
+                      <Check
+                        className={cn("mr-2 h-4 w-4", value === option ? "opacity-100 text-blue-600" : "opacity-0")}
+                      />
                       {option}
                     </CommandItem>
                   ))}
@@ -136,15 +142,78 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto rounded-2xl border-none shadow-2xl bg-white">
         <DialogHeader>
-          <DialogTitle>{initialData ? "Editar Gasto" : "Novo Gasto"}</DialogTitle>
+          <DialogTitle className="text-2xl font-black text-slate-800 tracking-tight">
+            {initialData ? "EDITAR GASTO" : "NOVO GASTO"}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          {/* Nome da Despesa com Sugestão */}
+        <div className="grid gap-5 py-2">
+          {/* Calculadora de Valores (Destaque) */}
+          <div className="col-span-2 bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-4">
+            <div className="flex items-center gap-2 mb-2 text-blue-800 font-bold text-sm">
+              <Calculator size={16} /> Valores e Parcelas
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-500 uppercase">Parcela Atual</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.parcela}
+                  onChange={(e) => setFormData({ ...formData, parcela: Math.max(1, Number(e.target.value)) })}
+                  className="bg-white border-slate-200 font-bold"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-500 uppercase">Total de Parcelas</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.total_parcela}
+                  onChange={(e) => setFormData({ ...formData, total_parcela: Math.max(1, Number(e.target.value)) })}
+                  className="bg-white border-slate-200 font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-3 border-t border-blue-100">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-blue-600 uppercase">Valor Mensal (Parcela)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                  <Input
+                    type="number"
+                    value={formData.valor || ""}
+                    onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
+                    className="pl-9 font-black text-blue-600 text-lg border-blue-300 focus-visible:ring-blue-500 bg-white"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black text-slate-600 uppercase">Valor Total da Compra</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">R$</span>
+                  <Input
+                    type="number"
+                    value={(formData.valor || 0) * (formData.total_parcela || 1) || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, valor: Number(e.target.value) / (formData.total_parcela || 1) })
+                    }
+                    className="pl-9 font-black text-slate-700 text-lg bg-white border-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+            <p className="text-[9px] text-slate-400 font-medium italic text-center">
+              Dica: Digite o Valor Total e o sistema divide pela parcela automaticamente.
+            </p>
+          </div>
+
           <ComboboxField
-            label="Despesa"
+            label="Despesa / Estabelecimento"
             value={formData.despesa}
             options={getUniqueValues("despesa")}
             onChange={handleDespesaSelect}
@@ -152,19 +221,21 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Valor</Label>
-              <Input
-                type="number"
-                value={formData.valor}
-                onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Data</Label>
+              <Label className="text-xs font-bold text-slate-500 uppercase">Data da Compra</Label>
               <Input
                 type="date"
                 value={formData.data}
                 onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                className="bg-slate-50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-slate-500 uppercase">Mês da Fatura</Label>
+              <Input
+                type="month"
+                value={formData.fatura || ""}
+                onChange={(e) => setFormData({ ...formData, fatura: e.target.value })}
+                className="bg-slate-50"
               />
             </div>
           </div>
@@ -177,49 +248,31 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
               onChange={(v: string) => setFormData({ ...formData, banco: v })}
             />
             <ComboboxField
-              label="Cartão"
+              label="Cartão (Final)"
               value={formData.cartao}
               options={getUniqueValues("cartao")}
               onChange={(v: string) => setFormData({ ...formData, cartao: v })}
             />
           </div>
 
-          <ComboboxField
-            label="Categoria"
-            value={formData.classificacao}
-            options={getUniqueValues("classificacao")}
-            onChange={(v: string) => setFormData({ ...formData, classificacao: v })}
-          />
-
-          <ComboboxField
-            label="Justificativa"
-            value={formData.justificativa}
-            options={getUniqueValues("justificativa")}
-            onChange={(v: string) => setFormData({ ...formData, justificativa: v })}
-          />
-
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Parcela Atual</Label>
-              <Input
-                type="number"
-                value={formData.parcela}
-                onChange={(e) => setFormData({ ...formData, parcela: Number(e.target.value) })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Total de Parcelas</Label>
-              <Input
-                type="number"
-                value={formData.total_parcela}
-                onChange={(e) => setFormData({ ...formData, total_parcela: Number(e.target.value) })}
-              />
-            </div>
+            <ComboboxField
+              label="Categoria"
+              value={formData.classificacao}
+              options={getUniqueValues("classificacao")}
+              onChange={(v: string) => setFormData({ ...formData, classificacao: v })}
+            />
+            <ComboboxField
+              label="Justificativa"
+              value={formData.justificativa}
+              options={getUniqueValues("justificativa")}
+              onChange={(v: string) => setFormData({ ...formData, justificativa: v })}
+            />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="pt-4 border-t mt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} className="font-bold">
             Cancelar
           </Button>
           <Button
@@ -227,6 +280,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
               onSubmit(formData);
               onOpenChange(false);
             }}
+            className="bg-blue-600 font-bold px-8"
           >
             Salvar Gasto
           </Button>
