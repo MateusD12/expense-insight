@@ -16,14 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Target } from "lucide-react";
 import {
@@ -151,7 +144,6 @@ export default function Index() {
     }
   };
 
-  // MOTOR DE LEITURA BLINDADO (Corrige o erro de não abrir o CSV)
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -160,7 +152,6 @@ export default function Index() {
     reader.onload = (e) => {
       try {
         const text = e.target?.result as string;
-        // Divide lidando com quebras de linha do Windows (\r\n) e do Mac/Linux (\n)
         const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
 
         if (lines.length < 2) {
@@ -168,7 +159,6 @@ export default function Index() {
           return;
         }
 
-        // Limpeza pesada no cabeçalho: remove BOM invisível, aspas e espaços
         const headers = lines[0]
           .toLowerCase()
           .replace(/^\ufeff/, "")
@@ -195,34 +185,36 @@ export default function Index() {
       }
     };
     reader.readAsText(file);
-
-    // O PULO DO GATO: Reseta o botão para o navegador permitir que você escolha o mesmo arquivo de novo
     event.target.value = "";
   };
+
+  // Conversor Seguro de Variáveis
+  const safeString = (val: any) => (val !== null && val !== undefined ? String(val).trim() : "");
 
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
-        let dataSegura = item.data;
-        if (dataSegura && dataSegura.includes("/")) {
+        let dataSegura = safeString(item.data);
+        if (dataSegura.includes("/")) {
           const p = dataSegura.split("/");
           if (p.length === 3) dataSegura = `${p[2]}-${p[1]}-${p[0]}`;
         }
 
         let faturaSegura = null;
-        if (item.fatura && item.fatura.trim() !== "") {
-          faturaSegura = item.fatura.length === 7 ? `${item.fatura}-01` : item.fatura;
+        const faturaRaw = safeString(item.fatura);
+        if (faturaRaw !== "") {
+          faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
         }
 
         const payload = {
-          banco: item.banco?.trim() || "Desconhecido",
-          cartao: item.cartao?.trim() || "",
-          valor: Number(item.valor) || 0,
+          banco: safeString(item.banco) || "Desconhecido",
+          cartao: safeString(item.cartao),
+          valor: Number(safeString(item.valor)) || 0,
           data: dataSegura || new Date().toISOString().split("T")[0],
-          despesa: item.despesa?.trim() || "Importado",
-          classificacao: item.classificacao?.trim() || "Outros",
-          justificativa: item.justificativa?.trim() || "",
+          despesa: safeString(item.despesa) || "Importado",
+          classificacao: safeString(item.classificacao) || "Outros",
+          justificativa: safeString(item.justificativa),
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
           fatura: faturaSegura,
@@ -592,15 +584,13 @@ export default function Index() {
       </div>
 
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent className="rounded-3xl border-none">
+        <DialogContent aria-describedby={undefined} className="rounded-3xl border-none">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-widest text-center">
               Ajustar Teto de Gastos
             </DialogTitle>
-            <DialogDescription className="text-center font-bold">
-              Deixe em zero para remover o limite do perfil.
-            </DialogDescription>
           </DialogHeader>
+          <p className="text-center text-slate-500 font-bold -mt-2">Deixe em zero para remover o limite.</p>
           <div className="py-6">
             <Input
               type="number"
@@ -621,12 +611,9 @@ export default function Index() {
       </Dialog>
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="sm:max-w-[600px] rounded-3xl border-none">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-[600px] rounded-3xl border-none">
           <DialogHeader>
             <DialogTitle className="font-black uppercase text-xl">Conferir Importação</DialogTitle>
-            <DialogDescription className="hidden">
-              Confirme os dados extraídos do arquivo para inserir no sistema.
-            </DialogDescription>
           </DialogHeader>
           <div className="max-h-[300px] overflow-auto border rounded-xl">
             <Table>
@@ -687,12 +674,9 @@ export default function Index() {
       />
 
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <AlertDialogContent className="rounded-3xl border-none">
+        <AlertDialogContent aria-describedby={undefined} className="rounded-3xl border-none">
           <AlertDialogHeader>
             <AlertDialogTitle className="font-black text-xl">Excluir este registro?</AlertDialogTitle>
-            <AlertDialogDescription className="hidden">
-              Tem certeza que deseja apagar essa despesa?
-            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="font-bold rounded-xl h-11">Cancelar</AlertDialogCancel>
