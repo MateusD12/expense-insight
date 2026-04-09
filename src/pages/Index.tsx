@@ -27,7 +27,22 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Upload, Target, ArrowUpDown, ArrowUp, ArrowDown, Check, Wallet } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Target,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  Wallet,
+  LogOut,
+  Mail,
+  Lock,
+  Chrome,
+} from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -63,18 +78,71 @@ const BADGE_COLORS: Record<string, string> = {
   Carro: "bg-slate-100 text-slate-800",
 };
 
-const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-
-const formatFatura = (d: string | null) => {
-  if (!d) return "-";
-  try {
-    return format(new Date(d.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
-  } catch {
-    return d;
-  }
-};
-
 export default function Index() {
+  // --- ESTADOS DE AUTENTICAÇÃO ---
+  const [session, setSession] = useState<any>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "signup" | "recovery">("login");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsCheckingAuth(false);
+    });
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    try {
+      if (authMode === "signup") {
+        const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
+        if (error) throw error;
+        toast.success("Conta criada! Verifique seu e-mail.");
+        setAuthMode("login");
+      } else if (authMode === "login") {
+        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
+        if (error) throw error;
+        toast.success("Bem-vindo de volta!");
+      } else if (authMode === "recovery") {
+        const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+          redirectTo: window.location.origin,
+        });
+        if (error) throw error;
+        toast.success("E-mail de recuperação enviado!");
+        setAuthMode("login");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Erro na operação.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({ provider: "google" });
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error("Erro ao conectar com Google.");
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast.info("Sessão encerrada.");
+  };
+
+  // --- LÓGICA DE NEGÓCIO ---
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
   const [filters, setFilters] = useState({
     search: "",
@@ -98,6 +166,7 @@ export default function Index() {
   const [budget, setBudget] = useState<number>(() => Number(localStorage.getItem("expense-budget")) || 4000);
   const [tempBudget, setTempBudget] = useState(budget);
 
+  // Importação
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
 
@@ -161,12 +230,10 @@ export default function Index() {
           e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
           e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
         const matchBanco = filters.banco === "all" || e.banco === filters.banco;
-        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-        const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-        return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchFatura;
+        return matchSearch && matchBanco && matchCat && matchFatura;
       });
     result.sort((a, b) => {
       const aVal = a[sortConfig.key] ?? "";
@@ -185,10 +252,6 @@ export default function Index() {
           .filter(Boolean) as string[],
       ),
     ].sort();
-  const cartoes =
-    filters.banco === "all"
-      ? unique("cartao")
-      : [...new Set(allExpenses.filter((e) => e.banco === filters.banco).map((e) => e.cartao))].sort();
 
   const pieData = useMemo(() => {
     const map: Record<string, { value: number; banco: string; cartao: string }> = {};
@@ -200,11 +263,10 @@ export default function Index() {
     return Object.entries(map).map(([name, d]) => ({ name, ...d }));
   }, [filteredAndSorted]);
 
-  const RADIAN = Math.PI / 180;
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const x = cx + radius * Math.cos((-Math.PI / 180) * midAngle);
+    const y = cy + radius * Math.sin((-Math.PI / 180) * midAngle);
     return percent < 0.04 ? null : (
       <text
         x={x}
@@ -217,41 +279,6 @@ export default function Index() {
       >{`${(percent * 100).toFixed(0)}%`}</text>
     );
   };
-
-  const areaData = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.fatura) {
-        const fat = e.fatura.slice(0, 7);
-        map[fat] = (map[fat] || 0) + Number(e.valor);
-      }
-    });
-    return Object.entries(map)
-      .sort()
-      .map(([f, valor]) => ({ name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }), valor }));
-  }, [filteredAndSorted]);
-
-  const topClassificacao = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.classificacao) map[e.classificacao] = (map[e.classificacao] || 0) + Number(e.valor);
-    });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, valor]) => ({ name, valor }));
-  }, [filteredAndSorted]);
-
-  const topJustificativa = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredAndSorted.forEach((e) => {
-      if (e.justificativa) map[e.justificativa] = (map[e.justificativa] || 0) + Number(e.valor);
-    });
-    return Object.entries(map)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 10)
-      .map(([name, valor]) => ({ name, valor }));
-  }, [filteredAndSorted]);
 
   const installmentsData = useMemo(() => {
     let data = filteredAndSorted.filter((e) => (e.total_parcela || 1) > 1);
@@ -283,16 +310,130 @@ export default function Index() {
     );
   };
 
-  if (isLoading)
-    return <div className="h-screen flex items-center justify-center font-bold text-slate-500">Carregando...</div>;
+  if (isCheckingAuth)
+    return (
+      <div className="h-screen flex items-center justify-center font-bold text-slate-500">Iniciando sistema...</div>
+    );
 
+  // --- TELA DE LOGIN ---
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-gradient-to-br from-blue-600 to-purple-700 p-10 text-center text-white">
+            <div className="bg-white/20 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
+              <Wallet size={40} className="text-white" />
+            </div>
+            <h1 className="text-4xl font-black tracking-tighter mb-2">Financeiro</h1>
+            <p className="text-blue-100 text-sm font-medium opacity-80 uppercase tracking-widest">
+              Controle Profissional
+            </p>
+          </div>
+
+          <div className="p-8 space-y-6">
+            <Button
+              onClick={loginWithGoogle}
+              variant="outline"
+              className="w-full h-12 font-bold border-slate-200 hover:bg-slate-50 flex gap-3 text-slate-700"
+            >
+              <Chrome size={20} className="text-blue-500" /> Entrar com Google
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-slate-100" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-slate-400 font-bold">Ou com e-mail</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div className="space-y-1">
+                <div className="relative">
+                  <Mail className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                  <Input
+                    type="email"
+                    placeholder="E-mail"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    required
+                    className="pl-10 h-12 bg-slate-50 border-none focus-visible:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {authMode !== "recovery" && (
+                <div className="space-y-1">
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3.5 h-5 w-5 text-slate-400" />
+                    <Input
+                      type="password"
+                      placeholder="Senha"
+                      value={authPassword}
+                      onChange={(e) => setAuthPassword(e.target.value)}
+                      required
+                      className="pl-10 h-12 bg-slate-50 border-none focus-visible:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                disabled={isAuthLoading}
+                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 text-lg shadow-lg shadow-blue-200"
+              >
+                {isAuthLoading
+                  ? "Processando..."
+                  : authMode === "signup"
+                    ? "Criar Minha Conta"
+                    : authMode === "recovery"
+                      ? "Enviar Link de Recuperação"
+                      : "Entrar"}
+              </Button>
+            </form>
+
+            <div className="flex flex-col gap-3 text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}
+                className="text-sm font-bold text-slate-500 hover:text-blue-600"
+              >
+                {authMode === "signup" ? "Já tem conta? Faça login" : "Não tem conta? Comece agora"}
+              </button>
+              {authMode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("recovery")}
+                  className="text-xs font-bold text-slate-400 hover:text-red-500"
+                >
+                  Esqueceu sua senha?
+                </button>
+              )}
+              {authMode === "recovery" && (
+                <button type="button" onClick={() => setAuthMode("login")} className="text-xs font-bold text-slate-500">
+                  Voltar para o login
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- DASHBOARD PRINCIPAL ---
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-8">
+      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-6 py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">💳 Controle de Gastos</h1>
-            <p className="text-blue-100 text-sm mt-1">Acompanhamento mensal detalhado</p>
+            <h1 className="text-2xl font-black flex items-center gap-2 tracking-tight uppercase">
+              💳 Controle de Gastos
+            </h1>
+            <p className="text-blue-100 text-xs mt-1 font-bold opacity-70">Logado como: {session.user.email}</p>
+            <p className="text-yellow-300 text-[9px] font-mono mt-1 select-all">SEU ID: {session.user.id}</p>
           </div>
           <div className="flex gap-2">
             <div className="relative">
@@ -302,76 +443,43 @@ export default function Index() {
                 onChange={handleFileUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
-              <Button variant="outline" className="bg-white/10 hover:bg-white/20 border-white/30 text-white font-bold">
-                <Upload className="mr-2 h-4 w-4" /> Importar
+              <Button
+                variant="outline"
+                className="bg-white/10 hover:bg-white/20 border-white/30 text-white font-bold h-11"
+              >
+                <Upload size={18} className="mr-2" /> Importar
               </Button>
             </div>
             <Button
-              className="bg-white text-blue-600 hover:bg-blue-50 border-none font-bold"
+              className="bg-white text-blue-700 hover:bg-blue-50 border-none font-black h-11 px-6 shadow-xl"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
               }}
             >
-              <Plus className="mr-2 h-4 w-4" /> Novo Gasto
+              <Plus size={18} className="mr-2" /> Novo Gasto
+            </Button>
+            <Button variant="ghost" onClick={handleLogout} className="text-white hover:bg-red-500/20 h-11">
+              <LogOut size={20} />
             </Button>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
+        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <Input
-            className="pl-4 h-10 flex-1 min-w-[200px]"
-            placeholder="Buscar despesa..."
+            className="pl-4 h-11 flex-1 min-w-[200px] bg-slate-50 border-none"
+            placeholder="O que você está procurando?"
             value={filters.search}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
-          <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
-            <SelectTrigger className="w-[140px] h-10">
-              <SelectValue placeholder="Bancos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos bancos</SelectItem>
-              {unique("banco").map((b) => (
-                <SelectItem key={b} value={b}>
-                  {b}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
-            <SelectTrigger className="w-[140px] h-10">
-              <SelectValue placeholder="Cartões" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos cartões</SelectItem>
-              {cartoes.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filters.classificacao} onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}>
-            <SelectTrigger className="w-[140px] h-10">
-              <SelectValue placeholder="Categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas categorias</SelectItem>
-              {unique("classificacao").map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
           <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
-            <SelectTrigger className="w-[140px] h-10">
+            <SelectTrigger className="w-[160px] h-11 bg-slate-50 border-none font-bold">
               <SelectValue placeholder="Faturas" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas faturas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
               {unique("fatura").map((f) => (
                 <SelectItem key={f} value={f}>
                   {formatFatura(f)}
@@ -382,57 +490,51 @@ export default function Index() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-[#3b82f6] text-white rounded-xl p-5 shadow-sm">
-            <p className="text-sm font-medium opacity-90">Total em Gastos</p>
-            <h2 className="text-2xl font-bold mt-1">{formatCurrency(totalSpent)}</h2>
+          <div className="bg-blue-600 text-white rounded-2xl p-5 shadow-blue-100 shadow-xl">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">Total Gastos</p>
+            <h2 className="text-2xl font-black mt-1">{formatCurrency(totalSpent)}</h2>
           </div>
           <div
             className={cn(
-              "text-white rounded-xl p-5 shadow-sm cursor-pointer hover:brightness-110",
-              remainingBudget < 0 ? "bg-red-500" : "bg-[#8b5cf6]",
+              "text-white rounded-2xl p-5 shadow-xl transition-all",
+              remainingBudget < 0 ? "bg-red-500" : "bg-purple-600",
             )}
             onClick={() => setBudgetDialogOpen(true)}
           >
-            <div className="flex justify-between items-center opacity-90">
-              <p className="text-sm font-medium">Saldo do Teto</p>
+            <div className="flex justify-between items-center opacity-80">
+              <p className="text-[10px] font-black uppercase tracking-widest">Saldo do Teto</p>
               <Target size={16} />
             </div>
-            <h2 className="text-2xl font-bold mt-1">{formatCurrency(remainingBudget)}</h2>
+            <h2 className="text-2xl font-black mt-1">{formatCurrency(remainingBudget)}</h2>
           </div>
-          <div className="bg-[#10b981] text-white rounded-xl p-5 shadow-sm">
-            <p className="text-sm font-medium opacity-90">Transações</p>
-            <h2 className="text-2xl font-bold mt-1">{filteredAndSorted.length}</h2>
+          <div className="bg-emerald-500 text-white rounded-2xl p-5 shadow-xl">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">Transações</p>
+            <h2 className="text-2xl font-black mt-1">{filteredAndSorted.length}</h2>
           </div>
-          <div className="bg-[#14b8a6] text-white rounded-xl p-5 shadow-sm">
-            <p className="text-sm font-medium opacity-90">Bancos</p>
-            <h2 className="text-2xl font-bold mt-1">{uniqueBancos}</h2>
+          <div className="bg-cyan-500 text-white rounded-2xl p-5 shadow-xl">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">Bancos</p>
+            <h2 className="text-2xl font-black mt-1">{uniqueBancos}</h2>
           </div>
-          <div className="bg-[#f97316] text-white rounded-xl p-5 shadow-sm">
-            <p className="text-sm font-medium opacity-90">Categorias</p>
-            <h2 className="text-2xl font-bold mt-1">{uniqueCats}</h2>
+          <div className="bg-orange-500 text-white rounded-2xl p-5 shadow-xl">
+            <p className="text-[10px] font-black opacity-80 uppercase tracking-widest">Categorias</p>
+            <h2 className="text-2xl font-black mt-1">{uniqueCats}</h2>
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="bg-transparent space-x-2 p-0 mb-6">
-            <TabsTrigger
-              value="dashboard"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-slate-200"
-            >
-              ☷ Dashboard
+        <Tabs defaultValue="dashboard">
+          <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl">
+            <TabsTrigger value="dashboard" className="rounded-lg px-8 font-bold">
+              Dashboard
             </TabsTrigger>
-            <TabsTrigger
-              value="tabela"
-              className="data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg border border-slate-200"
-            >
-              ⊞ Tabela
+            <TabsTrigger value="tabela" className="rounded-lg px-8 font-bold">
+              Tabela
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="space-y-6">
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Gastos por Banco / Cartão</h3>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-xs font-black text-slate-400 mb-6 uppercase tracking-tighter">Divisão por Banco</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
@@ -446,31 +548,18 @@ export default function Index() {
                       paddingAngle={2}
                       labelLine={false}
                       label={renderCustomizedLabel}
-                      onClick={(entry) => {
-                        const isFiltered = filters.banco === entry.banco && filters.cartao === entry.cartao;
-                        setFilters((f) => ({
-                          ...f,
-                          banco: isFiltered ? "all" : entry.banco,
-                          cartao: isFiltered ? "all" : entry.cartao,
-                        }));
-                      }}
-                      className="cursor-pointer focus:outline-none"
                     >
                       {pieData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={COLORS[i % COLORS.length]}
-                          className="hover:opacity-80 transition-opacity"
-                        />
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
                       ))}
                     </Pie>
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Legend iconType="square" wrapperStyle={{ fontSize: "12px" }} />
+                    <Legend iconType="circle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <h3 className="text-sm font-semibold text-slate-600 mb-6 uppercase">Evolução por Fatura</h3>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h3 className="text-xs font-black text-slate-400 mb-6 uppercase tracking-tighter">Evolução Mensal</h3>
                 <ResponsiveContainer width="100%" height={250}>
                   <AreaChart data={areaData}>
                     <defs>
@@ -480,38 +569,43 @@ export default function Index() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} className="text-xs text-slate-500" />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      className="text-[10px] font-bold text-slate-400"
+                    />
                     <YAxis
                       tickFormatter={(v) => `R$${v / 1000}k`}
                       axisLine={false}
                       tickLine={false}
-                      className="text-xs text-slate-500"
+                      className="text-[10px] font-bold text-slate-400"
                     />
                     <Tooltip formatter={(v: number) => formatCurrency(v)} />
-                    <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="valor" stroke="#8b5cf6" fill="url(#colorPurple)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
             <div className="grid gap-6 md:grid-cols-2">
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <RankedList data={topClassificacao} title="Top 10 por Categoria" />
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <RankedList data={topClassificacao} title="Maiores Gastos por Categoria" />
               </div>
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                <RankedList data={topJustificativa} title="Top 10 por Justificativa" />
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <RankedList data={topJustificativa} title="Maiores Gastos por Justificativa" />
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-semibold text-slate-600 uppercase">Acompanhamento de Parcelas</h3>
+                <h3 className="text-xs font-black text-slate-400 uppercase">Acompanhamento de Parcelas</h3>
                 <Select value={installmentFilter} onValueChange={setInstallmentFilter}>
-                  <SelectTrigger className="w-[200px] h-8 text-xs">
+                  <SelectTrigger className="w-[200px] h-8 text-xs bg-slate-50 border-none font-bold">
                     <SelectValue placeholder="Filtrar..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas</SelectItem>
+                    <SelectItem value="all">Todas as Parcelas</SelectItem>
                     {installmentsData.options.map((opt) => (
                       <SelectItem key={opt} value={opt}>
                         {opt}
@@ -528,12 +622,12 @@ export default function Index() {
                     dataKey="name"
                     type="category"
                     width={180}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 10, fontWeight: "bold", fill: "#94a3b8" }}
                     axisLine={false}
                     tickLine={false}
                   />
                   <Tooltip cursor={{ fill: "transparent" }} />
-                  <Legend wrapperStyle={{ fontSize: "11px" }} />
+                  <Legend iconType="circle" />
                   <Bar dataKey="Pagas" stackId="a" fill="#10b981" radius={[4, 0, 0, 4]} />
                   <Bar dataKey="Restantes" stackId="a" fill="#f59e0b" radius={[0, 4, 4, 0]} />
                 </BarChart>
@@ -542,76 +636,91 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="tabela">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-slate-50">
-                    <TableHead onClick={() => handleSort("banco")} className="cursor-pointer">
-                      Banco {getSortIcon("banco")}
+                    <TableHead
+                      onClick={() => handleSort("banco")}
+                      className="cursor-pointer font-black text-[10px] uppercase"
+                    >
+                      Banco
                     </TableHead>
-                    <TableHead onClick={() => handleSort("valor")} className="text-right cursor-pointer">
-                      Valor {getSortIcon("valor")}
+                    <TableHead
+                      onClick={() => handleSort("valor")}
+                      className="text-right cursor-pointer font-black text-[10px] uppercase"
+                    >
+                      Valor
                     </TableHead>
-                    <TableHead onClick={() => handleSort("data")} className="cursor-pointer">
-                      Data {getSortIcon("data")}
+                    <TableHead
+                      onClick={() => handleSort("data")}
+                      className="cursor-pointer font-black text-[10px] uppercase"
+                    >
+                      Data
                     </TableHead>
-                    <TableHead>Parcela</TableHead>
-                    <TableHead>Despesa</TableHead>
-                    <TableHead>Categoria</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase">Parcela</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase">Despesa</TableHead>
+                    <TableHead className="font-black text-[10px] uppercase">Categoria</TableHead>
                     <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSorted.map((e) => {
-                    const vParcela = Number(e.valor);
-                    const vFalta = vParcela * (e.total_parcela - e.parcela + 1);
-                    return (
-                      <TableRow key={e.id}>
-                        <TableCell className="font-bold">{e.banco}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="font-black text-blue-600">{formatCurrency(vParcela)}</div>
-                          {e.total_parcela > 1 && (
-                            <div className="text-[9px] text-orange-600 font-bold uppercase">
-                              Falta: {formatCurrency(vFalta)}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>{format(parseISO(e.data), "dd/MM/yyyy")}</TableCell>
-                        <TableCell className="font-bold text-xs">
-                          {e.parcela}/{e.total_parcela}
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-bold">{e.despesa}</div>
-                          <div className="text-[10px] text-slate-400 italic">{e.justificativa}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="font-bold text-[10px] uppercase">{e.classificacao}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2 justify-end">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setEditing(e);
-                                setFormOpen(true);
-                              }}
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-500"
-                              onClick={() => setDeleting(e.id)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
+                  {filteredAndSorted.map((e) => (
+                    <TableRow key={e.id} className="hover:bg-slate-50/50">
+                      <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="font-black text-blue-600">{formatCurrency(Number(e.valor))}</div>
+                        {e.total_parcela > 1 && (
+                          <div className="text-[9px] text-orange-600 font-black uppercase">
+                            Falta: {formatCurrency(Number(e.valor) * (e.total_parcela - e.parcela + 1))}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                        )}
+                      </TableCell>
+                      <TableCell className="text-slate-500 font-medium">
+                        {format(parseISO(e.data), "dd/MM/yyyy")}
+                      </TableCell>
+                      <TableCell className="font-black text-xs text-slate-400">
+                        {e.parcela}/{e.total_parcela}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-bold text-slate-800">{e.despesa}</div>
+                        <div className="text-[9px] text-slate-400 font-bold uppercase">{e.justificativa}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={cn(
+                            BADGE_COLORS[e.classificacao] || "bg-slate-100 text-slate-800",
+                            "font-black text-[9px] border-none uppercase shadow-none",
+                          )}
+                        >
+                          {e.classificacao}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-blue-500"
+                            onClick={() => {
+                              setEditing(e);
+                              setFormOpen(true);
+                            }}
+                          >
+                            <Pencil size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500"
+                            onClick={() => setDeleting(e.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -621,17 +730,19 @@ export default function Index() {
 
       {/* DIALOGS */}
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-[400px] rounded-3xl border-none">
           <DialogHeader>
-            <DialogTitle>Ajustar Teto</DialogTitle>
-            <DialogDescription>Seu limite de gastos.</DialogDescription>
+            <DialogTitle className="font-black">Ajustar Teto</DialogTitle>
+            <DialogDescription className="font-bold text-slate-400">
+              Quanto você planeja gastar por mês?
+            </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
               type="number"
               value={tempBudget}
               onChange={(e) => setTempBudget(Number(e.target.value))}
-              className="text-3xl font-black text-center h-16"
+              className="text-4xl font-black text-center h-20 bg-slate-50 border-none rounded-2xl"
             />
           </div>
           <DialogFooter>
@@ -642,44 +753,55 @@ export default function Index() {
                 setBudgetDialogOpen(false);
                 toast.success("Teto atualizado!");
               }}
-              className="w-full bg-blue-600 font-bold h-12"
+              className="w-full bg-blue-600 font-black h-14 rounded-2xl text-lg shadow-xl shadow-blue-100"
             >
-              Salvar
+              Salvar Teto
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] overflow-y-auto rounded-3xl">
           <DialogHeader>
-            <DialogTitle className="font-black">CONFERIR DADOS</DialogTitle>
-            <DialogDescription>Verifique se os valores estão corretos.</DialogDescription>
+            <DialogTitle className="font-black text-2xl uppercase">Conferência de Dados</DialogTitle>
+            <DialogDescription className="font-bold">
+              Verifique os valores convertidos antes de confirmar.
+            </DialogDescription>
           </DialogHeader>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Despesa</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead>Fatura</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {importPreview.slice(0, 10).map((item, idx) => (
-                <TableRow key={idx}>
-                  <TableCell>{item.despesa}</TableCell>
-                  <TableCell className="text-right font-bold">{formatCurrency(Number(item.valor))}</TableCell>
-                  <TableCell>{formatFatura(item.fatura)}</TableCell>
+          <div className="border rounded-2xl overflow-hidden my-4">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead className="font-black text-[10px]">Despesa</TableHead>
+                  <TableHead className="text-right font-black text-[10px]">Valor</TableHead>
+                  <TableHead className="font-black text-[10px]">Fatura</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+              </TableHeader>
+              <TableBody>
+                {importPreview.slice(0, 10).map((item, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell className="font-bold">{item.despesa}</TableCell>
+                    <TableCell className="text-right font-black text-emerald-600">
+                      {formatCurrency(Number(item.valor))}
+                    </TableCell>
+                    <TableCell className="text-xs font-bold text-slate-400 uppercase">
+                      {formatFatura(item.fatura)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowImportDialog(false)} className="font-bold h-12 rounded-xl">
               Cancelar
             </Button>
-            <Button onClick={confirmImport} className="bg-emerald-600 font-bold">
-              <Check className="mr-2 h-4 w-4" /> Confirmar {importPreview.length} Itens
+            <Button
+              onClick={confirmImport}
+              className="bg-emerald-600 font-black h-12 rounded-xl px-8 shadow-lg shadow-emerald-100"
+            >
+              <Check className="mr-2 h-5 w-5" /> Confirmar {importPreview.length} Itens
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -699,23 +821,38 @@ export default function Index() {
             fatura: faturaSegura,
           };
           if (editing) {
-            updateExpense.mutate({ id: editing.id, ...payload }, { onSuccess: () => toast.success("Atualizado!") });
+            updateExpense.mutate(
+              { id: editing.id, ...payload },
+              {
+                onSuccess: () => {
+                  toast.success("Gasto atualizado!");
+                  setFormOpen(false);
+                },
+              },
+            );
           } else {
-            addExpense.mutate(payload, { onSuccess: () => toast.success("Adicionado!") });
+            addExpense.mutate(payload, {
+              onSuccess: () => {
+                toast.success("Gasto adicionado!");
+                setFormOpen(false);
+              },
+            });
           }
         }}
       />
 
       <AlertDialog open={!!deleting} onOpenChange={() => setDeleting(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-3xl border-none">
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir?</AlertDialogTitle>
-            <AlertDialogDescription>Isso não pode ser desfeito.</AlertDialogDescription>
+            <AlertDialogTitle className="font-black text-2xl">Excluir este gasto?</AlertDialogTitle>
+            <AlertDialogDescription className="font-bold text-slate-400">
+              Esta ação removerá o registro permanentemente do seu controle.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Não</AlertDialogCancel>
+            <AlertDialogCancel className="font-bold h-12 rounded-xl">Não, manter</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600"
+              className="bg-red-600 font-black h-12 rounded-xl shadow-lg shadow-red-100"
               onClick={() => {
                 if (deleting)
                   deleteExpense.mutate(deleting, {
