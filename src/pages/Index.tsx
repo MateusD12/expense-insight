@@ -254,7 +254,7 @@ export default function Index() {
       const restantes = pTotal - pagas;
 
       return {
-        name: `${e.justificativa || "Sem justificativa"} (${pTotal}x)`, // Justificativa + Parcelas no Eixo Y
+        name: `${e.justificativa || "Sem justificativa"} (${pAtual}/${pTotal})`,
         Pagas: pagas,
         Restantes: restantes,
         Total: pTotal,
