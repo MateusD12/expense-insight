@@ -163,7 +163,11 @@ export default function Index() {
       try {
         const text = e.target?.result as string;
         const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-        if (lines.length < 2) return toast.error("O arquivo parece estar vazio.");
+
+        if (lines.length < 2) {
+          toast.error("O arquivo parece estar vazio ou não tem cabeçalho.");
+          return;
+        }
 
         const headers = lines[0]
           .toLowerCase()
@@ -171,6 +175,7 @@ export default function Index() {
           .replace(/"/g, "")
           .split(";")
           .map((h) => h.trim());
+
         const parsed = lines.slice(1).map((line) => {
           const values = line.split(";");
           const obj: any = {};
@@ -185,6 +190,7 @@ export default function Index() {
         setImportPreview(parsed);
         setShowImportDialog(true);
       } catch (err) {
+        console.error("Erro ao ler o arquivo:", err);
         toast.error("Erro ao ler o formato deste CSV.");
       }
     };
@@ -206,7 +212,9 @@ export default function Index() {
 
         let faturaSegura = null;
         const faturaRaw = safeString(item.fatura);
-        if (faturaRaw !== "") faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
+        if (faturaRaw !== "") {
+          faturaSegura = faturaRaw.length === 7 ? `${faturaRaw}-01` : faturaRaw;
+        }
 
         const payload = {
           banco: safeString(item.banco) || "Desconhecido",
@@ -221,12 +229,14 @@ export default function Index() {
           fatura: faturaSegura,
           user_id: session.user.id,
         };
+
         await addExpense.mutateAsync(payload);
       }
       toast.success("Tudo importado com sucesso!");
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
+      console.error(err);
       toast.error("Erro na importação. O banco rejeitou os dados.");
     }
   };
@@ -258,8 +268,10 @@ export default function Index() {
         const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
         const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
         const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
+
         const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
         const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
+
         const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
         const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
 
@@ -286,8 +298,8 @@ export default function Index() {
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
 
-      // Agrupando PIZZA apenas pelo Banco (Modelo Antigo Limpo)
-      const bankKey = e.banco || "Desconhecido";
+      // Volta a agrupar com Banco e Cartão juntos
+      const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
 
       cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
@@ -321,7 +333,9 @@ export default function Index() {
     let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
     const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
 
-    if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
+    if (installmentFilter !== "all") {
+      data = data.filter((e) => e.justificativa === installmentFilter);
+    }
 
     const latestInstallments: Record<string, any> = {};
     data.forEach((e) => {
@@ -343,10 +357,20 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
-  // --- FUNÇÕES DE CLIQUE PARA FILTRO INTERATIVO ---
+  // --- CLIQUES INTERATIVOS NOS GRÁFICOS ---
   const handleBankClick = (data: any) => {
-    // Se clicar no mesmo, ele limpa. Se clicar num novo, ele filtra.
-    setFilters((prev) => ({ ...prev, banco: prev.banco === data.name ? "all" : data.name }));
+    const parts = data.name.split(" ••");
+    const bankName = parts[0];
+    const cardNum = parts[1] || "all";
+
+    setFilters((prev) => {
+      const isAlreadySelected = prev.banco === bankName && prev.cartao === cardNum;
+      return {
+        ...prev,
+        banco: isAlreadySelected ? "all" : bankName,
+        cartao: isAlreadySelected ? "all" : cardNum,
+      };
+    });
   };
 
   const handleCatClick = (data: any) => {
@@ -643,6 +667,7 @@ export default function Index() {
                       innerRadius={60}
                       outerRadius={90}
                       paddingAngle={2}
+                      labelLine={false}
                       label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
                       onClick={handleBankClick}
                       className="cursor-pointer"
@@ -652,7 +677,7 @@ export default function Index() {
                           key={`cell-${i}`}
                           fill={COLORS[i % COLORS.length]}
                           className="hover:opacity-80 transition-opacity"
-                          stroke={filters.banco === entry.name ? "#000" : "none"}
+                          stroke={filters.banco === entry.name.split(" ••")[0] ? "#000" : "none"}
                           strokeWidth={2}
                         />
                       ))}
