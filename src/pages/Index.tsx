@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Search, Upload, ArrowUpDown, ArrowUp, ArrowDown, Target, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Target, Wallet, Calendar as CalendarIcon, Filter } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -33,74 +33,65 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { format } from "date-fns";
+import { format, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const COLORS = ["hsl(220,70%,50%)", "hsl(340,70%,50%)", "hsl(160,70%,40%)", "hsl(30,80%,50%)"];
-
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-
-const formatDate = (d: string | null) => {
-  if (!d) return "-";
-  try {
-    return format(new Date(d + "T12:00:00"), "dd/MM/yyyy");
-  } catch {
-    return d;
-  }
-};
 
 export default function Index() {
   const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
+
+  // Estados de Filtro
   const [filters, setFilters] = useState({
     search: "",
-    fatura: "all",
     banco: "all",
     cartao: "all",
     classificacao: "all",
+    justificativa: "all",
+    dataInicio: "",
+    dataFim: "",
   });
+
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Expense | null; direction: "asc" | "desc" }>({
-    key: "data",
-    direction: "desc",
-  });
 
-  // Teto de Gastos
+  // Teto de Gastos com Persistência
   const [budget, setBudget] = useState<number>(() => {
     const saved = localStorage.getItem("expense-budget");
     return saved ? Number(saved) : 3000;
   });
   const [tempBudget, setTempBudget] = useState(budget);
 
-  const filteredAndSorted = useMemo(() => {
-    let result = allExpenses.filter((e) => {
-      if (filters.fatura !== "all" && e.fatura !== filters.fatura) return false;
-      if (filters.banco !== "all" && e.banco !== filters.banco) return false;
-      if (filters.cartao !== "all" && e.cartao !== filters.cartao) return false;
-      if (filters.classificacao !== "all" && e.classificacao !== filters.classificacao) return false;
-      if (filters.search) {
-        const s = filters.search.toLowerCase();
-        return e.despesa?.toLowerCase().includes(s) || e.justificativa?.toLowerCase().includes(s);
+  // Lógica de Filtragem
+  const filteredData = useMemo(() => {
+    return allExpenses.filter((e) => {
+      const matchSearch =
+        e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
+      const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+      const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
+      const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
+
+      // Filtro de Período
+      let matchDate = true;
+      if (filters.dataInicio && filters.dataFim && e.data) {
+        const date = parseISO(e.data);
+        matchDate = isWithinInterval(date, {
+          start: parseISO(filters.dataInicio),
+          end: parseISO(filters.dataFim),
+        });
       }
-      return true;
+
+      return matchSearch && matchBanco && matchCartao && matchCat && matchJust && matchDate;
     });
+  }, [allExpenses, filters]);
 
-    if (sortConfig.key) {
-      result.sort((a, b) => {
-        const aVal = a[sortConfig.key!];
-        const bVal = b[sortConfig.key!];
-        const rev = sortConfig.direction === "asc" ? 1 : -1;
-        return aVal < bVal ? -1 * rev : 1 * rev;
-      });
-    }
-    return result;
-  }, [allExpenses, filters, sortConfig]);
-
-  const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
+  const totalSpent = useMemo(() => filteredData.reduce((acc, e) => acc + Number(e.valor), 0), [filteredData]);
   const remainingBudget = budget - totalSpent;
 
   const handleSaveBudget = () => {
@@ -110,151 +101,221 @@ export default function Index() {
     toast.success("Teto de gastos atualizado!");
   };
 
-  if (isLoading) return <div className="flex items-center justify-center h-screen">Carregando...</div>;
+  const unique = (key: keyof Expense) =>
+    [...new Set(allExpenses.map((e) => e[key]).filter(Boolean) as string[])].sort();
+
+  if (isLoading) return <div className="flex items-center justify-center h-screen font-mono">CARREGANDO DADOS...</div>;
 
   return (
-    <div className="min-h-screen bg-muted/30 pb-10">
+    <div className="min-h-screen bg-[#f8fafc] pb-10">
       {/* Header */}
-      <div className="bg-blue-600 text-white px-4 py-6 shadow-lg">
+      <div className="bg-[#2563eb] text-white px-6 py-8 shadow-md">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">💳 Controle de Gastos</h1>
-            <p className="text-blue-100 text-sm">Gerencie suas finanças com precisão</p>
+            <h1 className="text-3xl font-black tracking-tighter flex items-center gap-2 italic">
+              <Wallet size={32} /> CONTROLE DE GASTOS
+            </h1>
+            <p className="text-blue-100 text-sm font-medium opacity-80">GESTÃO FINANCEIRA PESSOAL v2.0</p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              className="bg-white text-blue-600 hover:bg-blue-50"
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus className="mr-1 h-4 w-4" /> Novo Gasto
-            </Button>
-          </div>
+          <Button
+            className="bg-white text-[#2563eb] hover:bg-blue-50 font-bold shadow-lg"
+            onClick={() => {
+              setEditing(null);
+              setFormOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-5 w-5" /> NOVO GASTO
+          </Button>
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-6 space-y-6">
-        {/* Superior: Teto e Filtros */}
-        <div className="grid gap-4 md:grid-cols-12">
-          {/* Card de Teto - Clicável */}
+      <div className="mx-auto max-w-7xl px-4 -mt-8 space-y-6">
+        {/* INDICADORES DE ORÇAMENTO (CARDS GRANDES) */}
+        <div className="grid gap-4 md:grid-cols-2">
+          {/* Card Total Gasto */}
+          <div className="rounded-2xl border-none bg-white p-6 shadow-xl flex flex-col justify-center min-h-[140px]">
+            <p className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Consumido</p>
+            <h2 className="text-4xl font-black text-slate-800 tracking-tighter">{formatCurrency(totalSpent)}</h2>
+          </div>
+
+          {/* Card Teto/Disponível - Clicável */}
           <div
-            className="md:col-span-4 rounded-xl border bg-white p-5 shadow-sm cursor-pointer hover:border-blue-400 transition-all group"
+            className={cn(
+              "rounded-2xl border-none p-6 shadow-xl flex flex-col justify-center min-h-[140px] cursor-pointer transition-transform hover:scale-[1.02] active:scale-[0.98]",
+              remainingBudget < 0 ? "bg-red-600 text-white" : "bg-emerald-500 text-white",
+            )}
             onClick={() => {
               setTempBudget(budget);
               setBudgetDialogOpen(true);
             }}
           >
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1">
-                <Target size={12} /> Resumo do Orçamento
-              </span>
-              <Settings2
-                size={14}
-                className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-              />
+            <div className="flex justify-between items-start">
+              <p className="text-xs font-black uppercase tracking-[0.2em] opacity-80 mb-1">
+                {remainingBudget < 0 ? "Orçamento Estourado" : "Saldo Disponível"}
+              </p>
+              <Target size={20} className="opacity-50" />
             </div>
+            <h2 className="text-4xl font-black tracking-tighter">
+              {remainingBudget < 0 ? `- ${formatCurrency(Math.abs(remainingBudget))}` : formatCurrency(remainingBudget)}
+            </h2>
+            <p className="text-[10px] font-bold mt-1 opacity-70">
+              CLIQUE PARA AJUSTAR O TETO (ATUAL: {formatCurrency(budget)})
+            </p>
+          </div>
+        </div>
 
-            <div className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Total Gasto</p>
-                <p className="text-xl font-bold text-slate-800">{formatCurrency(totalSpent)}</p>
-              </div>
-
-              <div className="pt-3 border-t">
-                <p className="text-xs text-muted-foreground">Disponível (Teto: {formatCurrency(budget)})</p>
-                <p
-                  className={cn(
-                    "text-2xl font-black tracking-tighter",
-                    remainingBudget < 0 ? "text-red-600" : "text-emerald-600",
-                  )}
-                >
-                  {remainingBudget < 0
-                    ? `-${formatCurrency(Math.abs(remainingBudget))}`
-                    : formatCurrency(remainingBudget)}
-                </p>
-              </div>
-            </div>
+        {/* BARRA DE FILTROS REFEITA */}
+        <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 space-y-4">
+          <div className="flex items-center gap-2 text-slate-800 font-bold text-sm mb-2">
+            <Filter size={16} /> FILTRAR RESULTADOS
           </div>
 
-          {/* Filtros */}
-          <div className="md:col-span-8 bg-white p-5 rounded-xl border shadow-sm flex flex-col justify-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="grid gap-4 md:grid-cols-4 lg:grid-cols-7 items-end">
+            {/* Busca e Período nas colunas maiores */}
+            <div className="md:col-span-2 space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Descrição / Justificativa</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  className="pl-9 bg-slate-50 border-slate-200"
+                  placeholder="Ex: Mercado..."
+                  value={filters.search}
+                  onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">De:</label>
               <Input
-                placeholder="Buscar despesa ou justificativa..."
-                className="pl-9 bg-muted/30 border-none"
-                value={filters.search}
-                onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+                type="date"
+                className="bg-slate-50"
+                value={filters.dataInicio}
+                onChange={(e) => setFilters((f) => ({ ...f, dataInicio: e.target.value }))}
               />
             </div>
-            <div className="flex flex-wrap gap-2">
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Até:</label>
+              <Input
+                type="date"
+                className="bg-slate-50"
+                value={filters.dataFim}
+                onChange={(e) => setFilters((f) => ({ ...f, dataFim: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Banco</label>
               <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
-                <SelectTrigger className="w-[140px] bg-muted/30 border-none">
+                <SelectTrigger className="bg-slate-50">
                   <SelectValue placeholder="Banco" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos Bancos</SelectItem>
-                  {/* unique values here */}
+                  <SelectItem value="all">Todos</SelectItem>
+                  {unique("banco").map((b) => (
+                    <SelectItem key={b} value={b}>
+                      {b}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Categoria</label>
               <Select
                 value={filters.classificacao}
                 onValueChange={(v) => setFilters((f) => ({ ...f, classificacao: v }))}
               >
-                <SelectTrigger className="w-[140px] bg-muted/30 border-none">
+                <SelectTrigger className="bg-slate-50">
                   <SelectValue placeholder="Categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Categorias</SelectItem>
+                  <SelectItem value="all">Todas</SelectItem>
+                  {unique("classificacao").map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
+
+            <Button
+              variant="ghost"
+              className="text-xs font-bold text-red-500"
+              onClick={() =>
+                setFilters({
+                  search: "",
+                  banco: "all",
+                  cartao: "all",
+                  classificacao: "all",
+                  justificativa: "all",
+                  dataInicio: "",
+                  dataFim: "",
+                })
+              }
+            >
+              LIMPAR
+            </Button>
           </div>
         </div>
 
-        <SummaryCards expenses={filteredAndSorted} />
+        {/* Resumo Secundário */}
+        <SummaryCards expenses={filteredData} />
 
-        <Tabs defaultValue="tabela">
-          <TabsList className="bg-white border">
-            <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-            <TabsTrigger value="tabela">Tabela de Gastos</TabsTrigger>
+        {/* Listagem */}
+        <Tabs defaultValue="tabela" className="w-full">
+          <TabsList className="bg-slate-200/50 p-1 rounded-xl">
+            <TabsTrigger value="dashboard" className="rounded-lg font-bold">
+              DASHBOARD
+            </TabsTrigger>
+            <TabsTrigger value="tabela" className="rounded-lg font-bold">
+              TABELA DE GASTOS
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="tabela" className="mt-4">
-            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
+          <TabsContent value="tabela" className="mt-6">
+            <div className="rounded-2xl border-none bg-white shadow-xl overflow-hidden">
               <Table>
-                <TableHeader className="bg-slate-50">
-                  <TableRow>
-                    <TableHead className="font-bold">BANCO</TableHead>
-                    <TableHead className="text-right font-bold">VALOR</TableHead>
-                    <TableHead className="font-bold">DATA</TableHead>
-                    <TableHead className="font-bold">DESPESA</TableHead>
-                    <TableHead className="font-bold">CATEGORIA</TableHead>
-                    <TableHead className="w-[80px]" />
+                <TableHeader className="bg-slate-800">
+                  <TableRow className="hover:bg-slate-800 border-none">
+                    <TableHead className="text-white font-black text-[10px] uppercase">Banco</TableHead>
+                    <TableHead className="text-right text-white font-black text-[10px] uppercase">Valor</TableHead>
+                    <TableHead className="text-white font-black text-[10px] uppercase">Data</TableHead>
+                    <TableHead className="text-white font-black text-[10px] uppercase">Despesa</TableHead>
+                    <TableHead className="text-white font-black text-[10px] uppercase">Categoria</TableHead>
+                    <TableHead />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAndSorted.map((e) => (
-                    <TableRow key={e.id}>
-                      <TableCell className="font-medium">{e.banco}</TableCell>
-                      <TableCell className="text-right font-bold text-blue-600">
-                        {formatCurrency(Number(e.valor))}
+                  {filteredData.map((e) => (
+                    <TableRow key={e.id} className="border-slate-100 hover:bg-slate-50 transition-colors">
+                      <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
+                      <TableCell className="text-right font-black text-blue-600">
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(e.valor))}
                       </TableCell>
-                      <TableCell>{formatDate(e.data)}</TableCell>
-                      <TableCell>{e.despesa}</TableCell>
+                      <TableCell className="text-slate-500 font-medium">
+                        {format(parseISO(e.data), "dd/MM/yyyy")}
+                      </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-slate-800 text-sm">{e.despesa}</span>
+                          <span className="text-[10px] text-slate-400 italic">{e.justificativa}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-slate-100 text-slate-600 hover:bg-slate-100 border-none font-bold text-[10px]">
                           {e.classificacao}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 justify-end">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            className="h-8 w-8 hover:bg-blue-50 text-blue-400"
                             onClick={() => {
                               setEditing(e);
                               setFormOpen(true);
@@ -265,7 +326,7 @@ export default function Index() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-red-500"
+                            className="h-8 w-8 hover:bg-red-50 text-red-400"
                             onClick={() => setDeleting(e.id)}
                           >
                             <Trash2 size={14} />
@@ -281,39 +342,32 @@ export default function Index() {
         </Tabs>
       </div>
 
-      {/* Popup para Definir Teto */}
+      {/* Popups */}
       <Dialog open={budgetDialogOpen} onOpenChange={setBudgetDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="rounded-3xl border-none shadow-2xl">
           <DialogHeader>
-            <DialogTitle>Configurar Teto de Gastos</DialogTitle>
+            <DialogTitle className="font-black text-2xl tracking-tighter">CONFIGURAR TETO</DialogTitle>
           </DialogHeader>
-          <div className="py-4 space-y-4">
+          <div className="py-6 space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Limite Mensal Desejado</label>
+              <label className="text-[10px] font-black uppercase text-slate-400">Limite Mensal Desejado</label>
               <Input
                 type="number"
                 value={tempBudget}
                 onChange={(e) => setTempBudget(Number(e.target.value))}
-                placeholder="Ex: 3000"
-                className="text-lg font-bold"
+                className="text-3xl font-black h-16 bg-slate-50 border-none"
               />
             </div>
-            <p className="text-xs text-muted-foreground italic">
-              Este valor será usado para calcular o quanto ainda resta do seu orçamento no card principal.
-            </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBudgetDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveBudget} className="bg-blue-600">
-              Salvar Novo Teto
+            <Button onClick={handleSaveBudget} className="w-full h-12 bg-blue-600 font-black rounded-xl">
+              SALVAR ALTERAÇÕES
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={(data) => {}} />
+      <ExpenseForm open={formOpen} onOpenChange={setFormOpen} initialData={editing} onSubmit={() => {}} />
     </div>
   );
 }
