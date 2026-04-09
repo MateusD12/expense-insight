@@ -27,6 +27,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus,
   Pencil,
@@ -200,6 +201,7 @@ export default function Index() {
   };
 
   const confirmImport = async () => {
+    if (!session?.user?.id) return;
     try {
       for (const item of importPreview) {
         await addExpense.mutateAsync({
@@ -213,10 +215,10 @@ export default function Index() {
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcelas || item.total_parcela) || 1,
           fatura: item.fatura || null,
-          user_id: session?.user?.id,
+          user_id: session.user.id,
         });
       }
-      toast.success("Importação concluída!");
+      toast.success("Importação concluída com sucesso!");
       setShowImportDialog(false);
       setImportPreview([]);
     } catch (err) {
@@ -300,9 +302,7 @@ export default function Index() {
 
   if (isCheckingAuth)
     return (
-      <div className="h-screen flex items-center justify-center font-bold text-slate-500 italic">
-        Validando acesso...
-      </div>
+      <div className="h-screen flex items-center justify-center font-bold text-slate-500 italic">Autenticando...</div>
     );
 
   if (!session) {
@@ -385,13 +385,25 @@ export default function Index() {
     );
   }
 
+  // Pegando dados do perfil do Google
+  const userName = session.user.user_metadata?.full_name || session.user.email;
+  const userAvatar = session.user.user_metadata?.avatar_url;
+
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-6 py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black uppercase tracking-tight">💳 Controle de Gastos</h1>
-            <p className="text-blue-100 text-[10px] mt-1 font-mono opacity-80">ID: {session.user.id}</p>
+          <div className="flex items-center gap-4">
+            <Avatar className="h-12 w-12 border-2 border-white/20 shadow-md">
+              <AvatarImage src={userAvatar} />
+              <AvatarFallback className="bg-blue-800 font-bold">
+                {userName?.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-xl font-black tracking-tight uppercase">Olá, {userName?.split(" ")[0]}</h1>
+              <p className="text-blue-100 text-xs font-bold opacity-70">Painel de Controle Financeiro</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <div className="relative">
@@ -401,12 +413,12 @@ export default function Index() {
                 onChange={handleFileUpload}
                 className="absolute inset-0 opacity-0 cursor-pointer"
               />
-              <Button variant="outline" className="bg-white/10 text-white font-bold">
+              <Button variant="outline" className="bg-white/10 text-white font-bold h-11">
                 <Upload size={18} className="mr-2" /> Importar
               </Button>
             </div>
             <Button
-              className="bg-white text-blue-700 font-black"
+              className="bg-white text-blue-700 font-black h-11"
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -414,7 +426,7 @@ export default function Index() {
             >
               <Plus size={18} className="mr-2" /> Novo Gasto
             </Button>
-            <Button variant="ghost" onClick={handleLogout} className="text-white hover:bg-red-500/20">
+            <Button variant="ghost" onClick={handleLogout} className="text-white hover:bg-red-500/20 h-11">
               <LogOut size={20} />
             </Button>
           </div>
@@ -425,7 +437,7 @@ export default function Index() {
         <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-3 items-center">
           <Input
             className="pl-4 h-11 flex-1 min-w-[200px] bg-slate-50 border-none"
-            placeholder="Buscar..."
+            placeholder="O que você está procurando?"
             value={filters.search}
             onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
           />
@@ -656,6 +668,7 @@ export default function Index() {
         onOpenChange={setFormOpen}
         initialData={editing}
         onSubmit={(data) => {
+          if (!session?.user?.id) return;
           const payload = {
             ...data,
             valor: Number(data.valor),
