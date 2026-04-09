@@ -18,7 +18,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Pencil, Trash2, Upload, LogOut, Chrome, Wallet, Target, FilterX } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  LogOut,
+  Chrome,
+  Wallet,
+  Target,
+  FilterX,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -77,6 +90,11 @@ export default function Index() {
     dataFim: "",
   });
   const [installmentFilter, setInstallmentFilter] = useState("all");
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Expense; direction: "asc" | "desc" }>({
+    key: "data",
+    direction: "desc",
+  });
+
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
@@ -248,34 +266,58 @@ export default function Index() {
       ),
     ].sort();
 
-  const filteredAndSorted = useMemo(() => {
-    return normalizedExpenses
-      .filter((e) => {
-        const matchSearch =
-          e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
-          e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
-        const matchBanco = filters.banco === "all" || e.banco === filters.banco;
-        const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
-        const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-        const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
-        const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
-        const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
-        const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
-        const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
+  const requestSort = (key: keyof Expense) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc") direction = "desc";
+    setSortConfig({ key, direction });
+  };
 
-        return (
-          matchSearch &&
-          matchBanco &&
-          matchCartao &&
-          matchCat &&
-          matchJust &&
-          matchFatura &&
-          matchDataInicio &&
-          matchDataFim
-        );
-      })
-      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
-  }, [normalizedExpenses, filters]);
+  const filteredAndSorted = useMemo(() => {
+    let result = normalizedExpenses.filter((e) => {
+      const matchSearch =
+        e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
+      const matchBanco = filters.banco === "all" || e.banco === filters.banco;
+      const matchCartao = filters.cartao === "all" || e.cartao === filters.cartao;
+      const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
+      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
+      const faturafmt = e.fatura ? e.fatura.slice(0, 7) : "all";
+      const matchFatura = filters.fatura === "all" || faturafmt === filters.fatura;
+      const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
+      const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
+
+      return (
+        matchSearch &&
+        matchBanco &&
+        matchCartao &&
+        matchCat &&
+        matchJust &&
+        matchFatura &&
+        matchDataInicio &&
+        matchDataFim
+      );
+    });
+
+    result.sort((a: any, b: any) => {
+      if (sortConfig.key === "valor" || sortConfig.key === "parcela" || sortConfig.key === "total_parcela") {
+        const aVal = Number(a[sortConfig.key]) || 0;
+        const bVal = Number(b[sortConfig.key]) || 0;
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+      }
+      if (sortConfig.key === "data") {
+        const aDate = new Date(a.data).getTime();
+        const bDate = new Date(b.data).getTime();
+        return sortConfig.direction === "asc" ? aDate - bDate : bDate - aDate;
+      }
+      const aVal = String(a[sortConfig.key] || "").toLowerCase();
+      const bVal = String(b[sortConfig.key] || "").toLowerCase();
+      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
+    return result;
+  }, [normalizedExpenses, filters, sortConfig]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
@@ -285,10 +327,8 @@ export default function Index() {
 
     filteredAndSorted.forEach((e) => {
       const val = Number(e.valor);
-
       const bankKey = e.banco ? `${e.banco}${e.cartao ? " ••" + e.cartao : ""}` : "Desconhecido";
       banks[bankKey] = (banks[bankKey] || 0) + val;
-
       cats[e.classificacao || "Outros"] = (cats[e.classificacao || "Outros"] || 0) + val;
       justs[e.justificativa || "Outros"] = (justs[e.justificativa || "Outros"] || 0) + val;
 
@@ -319,7 +359,6 @@ export default function Index() {
   const installmentsData = useMemo(() => {
     let data = filteredAndSorted.filter((e) => e.total_parcela > 1);
     const uniqueJust = [...new Set(data.map((e) => e.justificativa))].filter(Boolean) as string[];
-
     if (installmentFilter !== "all") data = data.filter((e) => e.justificativa === installmentFilter);
 
     const latestInstallments: Record<string, any> = {};
@@ -346,19 +385,23 @@ export default function Index() {
     const parts = data.name.split(" ••");
     const bankName = parts[0];
     const cardNum = parts[1] || "all";
-
     setFilters((prev) => {
       const isAlreadySelected = prev.banco === bankName && prev.cartao === cardNum;
-      return {
-        ...prev,
-        banco: isAlreadySelected ? "all" : bankName,
-        cartao: isAlreadySelected ? "all" : cardNum,
-      };
+      return { ...prev, banco: isAlreadySelected ? "all" : bankName, cartao: isAlreadySelected ? "all" : cardNum };
     });
   };
 
   const handleCatClick = (data: any) => {
     setFilters((prev) => ({ ...prev, classificacao: prev.classificacao === data.name ? "all" : data.name }));
+  };
+
+  const renderSortIcon = (key: string) => {
+    if (sortConfig.key !== key) return <ArrowUpDown size={12} className="opacity-30 inline-block ml-1" />;
+    return sortConfig.direction === "asc" ? (
+      <ArrowUp size={12} className="inline-block ml-1 text-blue-600" />
+    ) : (
+      <ArrowDown size={12} className="inline-block ml-1 text-blue-600" />
+    );
   };
 
   if (isCheckingAuth)
@@ -427,7 +470,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
-      {/* Cabeçalho Responsivo */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white px-4 sm:px-6 py-6 sm:py-8 shadow-lg">
         <div className="mx-auto max-w-7xl flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -476,7 +518,6 @@ export default function Index() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 mt-6 space-y-6">
-        {/* Painel de Filtros Responsivo */}
         <div className="bg-white p-3 sm:p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3">
           <div className="grid grid-cols-2 md:flex md:flex-wrap gap-2 sm:gap-3">
             <Input
@@ -588,7 +629,6 @@ export default function Index() {
           </div>
         </div>
 
-        {/* Cards Responsivos */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-blue-600 text-white rounded-2xl p-4 sm:p-5 shadow-xl">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 truncate">
@@ -644,7 +684,7 @@ export default function Index() {
           </div>
         </div>
 
-        <Tabs defaultValue="dashboard">
+        <Tabs defaultValue="tabela">
           <TabsList className="bg-slate-200/50 p-1 mb-6 rounded-xl w-full sm:w-auto flex">
             <TabsTrigger value="dashboard" className="px-4 sm:px-8 font-bold rounded-lg flex-1 sm:flex-none">
               Dashboard
@@ -822,26 +862,62 @@ export default function Index() {
           <TabsContent value="tabela">
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
               <div className="overflow-x-auto">
-                <Table className="min-w-[700px]">
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 border-none">
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Banco</TableHead>
-                      <TableHead className="text-right font-black text-[10px] uppercase tracking-widest">
-                        Valor
+                <Table className="min-w-[900px]">
+                  <TableHeader className="bg-slate-100/50">
+                    <TableRow className="border-b border-slate-200">
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4"
+                        onClick={() => requestSort("banco")}
+                      >
+                        Banco {renderSortIcon("banco")}
                       </TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest text-center">
-                        Parcela
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors text-right py-4"
+                        onClick={() => requestSort("valor")}
+                      >
+                        Valor {renderSortIcon("valor")}
                       </TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Data</TableHead>
-                      <TableHead className="font-black text-[10px] uppercase tracking-widest">Despesa</TableHead>
-                      <TableHead />
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors text-center py-4"
+                        onClick={() => requestSort("parcela")}
+                      >
+                        Parcela {renderSortIcon("parcela")}
+                      </TableHead>
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4"
+                        onClick={() => requestSort("data")}
+                      >
+                        Data {renderSortIcon("data")}
+                      </TableHead>
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[200px]"
+                        onClick={() => requestSort("despesa")}
+                      >
+                        Despesa {renderSortIcon("despesa")}
+                      </TableHead>
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[140px]"
+                        onClick={() => requestSort("classificacao")}
+                      >
+                        Categoria {renderSortIcon("classificacao")}
+                      </TableHead>
+                      <TableHead
+                        className="font-black text-[10px] uppercase tracking-widest cursor-pointer hover:bg-slate-200/50 transition-colors py-4 min-w-[200px]"
+                        onClick={() => requestSort("justificativa")}
+                      >
+                        Justificativa {renderSortIcon("justificativa")}
+                      </TableHead>
+                      <TableHead className="py-4" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredAndSorted.map((e) => (
-                      <TableRow key={e.id} className="hover:bg-slate-50/50 transition-colors">
-                        <TableCell className="font-bold text-slate-700">{e.banco}</TableCell>
-                        <TableCell className="text-right font-black text-blue-600">
+                      <TableRow key={e.id} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
+                        <TableCell className="font-bold text-slate-700">
+                          {e.banco}{" "}
+                          <span className="text-slate-400 text-xs font-normal ml-1">{e.cartao && `••${e.cartao}`}</span>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-blue-600 text-sm">
                           {formatCurrency(Number(e.valor))}
                         </TableCell>
                         <TableCell className="text-center font-black text-xs text-slate-400">
@@ -850,16 +926,24 @@ export default function Index() {
                         <TableCell className="text-slate-500 text-xs font-bold">
                           {format(parseISO(e.data), "dd/MM/yy")}
                         </TableCell>
+                        <TableCell className="font-bold text-slate-800 text-sm">{e.despesa}</TableCell>
                         <TableCell>
-                          <div className="font-bold text-slate-800 text-sm">{e.despesa}</div>
-                          <div className="text-[9px] text-slate-400 font-bold uppercase">{e.justificativa}</div>
+                          <span className="px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200">
+                            {e.classificacao || "Sem Cat"}
+                          </span>
+                        </TableCell>
+                        <TableCell
+                          className="text-xs text-slate-500 font-medium truncate max-w-[200px]"
+                          title={e.justificativa}
+                        >
+                          {e.justificativa || "-"}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1 justify-end">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-blue-500"
+                              className="h-8 w-8 text-blue-500 hover:bg-blue-50"
                               onClick={() => {
                                 setEditing(e);
                                 setFormOpen(true);
@@ -870,7 +954,7 @@ export default function Index() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-red-500"
+                              className="h-8 w-8 text-red-500 hover:bg-red-50"
                               onClick={() => setDeleting(e.id)}
                             >
                               <Trash2 size={14} />
