@@ -29,9 +29,6 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
 
-  const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
   const futureExpenses = useMemo(() => {
     const hoje = new Date();
     const todayStr = format(hoje, "yyyy-MM-dd"); // Ex: 2026-04-10
@@ -60,24 +57,25 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
     });
   }, [expenses]);
 
-  const futureExpenses = useMemo(() => {
-    const todayStr = format(new Date(), "yyyy-MM-dd"); // 2026-04-10
+  const uniqueFaturas = useMemo(
+    () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)).filter(Boolean))] as string[],
+    [futureExpenses],
+  );
 
-    return expenses.filter((e) => {
-      if (!e.fatura) return false;
+  const uniqueDespesas = useMemo(
+    () => [...new Set(futureExpenses.map((e) => e.despesa).filter(Boolean))] as string[],
+    [futureExpenses],
+  );
 
-      // Regra 1: Só parcelamentos reais (> 1 parcela)
-      const isParcelamentoReal = (e.total_parcela || 0) > 1;
-
-      // Regra 2: É futuro se o dia da despesa ainda NÃO CHEGOU
-      const aindaNaoChegouODia = e.data > todayStr;
-
-      // Regra 3: Ou se ela foi adiantada manualmente (fatura_original existe)
-      const wasAdvanced = !!e.fatura_original;
-
-      return isParcelamentoReal && (aindaNaoChegouODia || wasAdvanced);
-    });
-  }, [expenses]);
+  const filtered = useMemo(
+    () =>
+      futureExpenses.filter((e) => {
+        const matchesFatura = faturaFilter === "all" || e.fatura?.substring(0, 7) === faturaFilter;
+        const matchesDespesa = despesaFilter === "all" || (e.despesa ?? "") === despesaFilter;
+        return matchesFatura && matchesDespesa;
+      }),
+    [despesaFilter, faturaFilter, futureExpenses],
+  );
 
   const handleAdvance = (e: Expense) => {
     if (!e.fatura) return;
