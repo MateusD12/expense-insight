@@ -23,6 +23,7 @@ export type Database = {
           data: string | null
           despesa: string | null
           fatura: string | null
+          fatura_original: string | null
           id: string
           justificativa: string | null
           parcela: number
@@ -38,6 +39,7 @@ export type Database = {
           data?: string | null
           despesa?: string | null
           fatura?: string | null
+          fatura_original?: string | null
           id?: string
           justificativa?: string | null
           parcela?: number
@@ -53,6 +55,7 @@ export type Database = {
           data?: string | null
           despesa?: string | null
           fatura?: string | null
+          fatura_original?: string | null
           id?: string
           justificativa?: string | null
           parcela?: number

@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
+import { FutureExpenses } from "@/components/FutureExpenses";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -92,7 +93,7 @@ export default function Index() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup" | "recovery">("login");
 
-  const { data: allExpenses = [], isLoading, addExpense, updateExpense, deleteExpense } = useExpenses();
+  const { data: allExpenses = [], isLoading, addExpense, bulkAddExpenses, updateExpense, deleteExpense } = useExpenses();
 
   const [filters, setFilters] = useState({
     search: "",
@@ -242,6 +243,7 @@ export default function Index() {
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcela || item.total_parcelas) || 1,
           fatura: faturaSegura,
+          fatura_original: null,
           user_id: session.user.id,
         };
         await addExpense.mutateAsync(payload);
@@ -650,6 +652,12 @@ export default function Index() {
             >
               Tabela
             </TabsTrigger>
+            <TabsTrigger
+              value="futuras"
+              className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 transition-colors"
+            >
+              Futuras
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="flex flex-col gap-6">
@@ -941,6 +949,10 @@ export default function Index() {
               </div>
             </div>
           </TabsContent>
+
+          <TabsContent value="futuras">
+            <FutureExpenses expenses={normalizedExpenses} />
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -974,15 +986,19 @@ export default function Index() {
         initialData={editing}
         onSubmit={(data) => {
           if (!session?.user?.id) return;
-          const payload = {
-            ...data,
-            valor: Number(data.valor),
-            parcela: Number(data.parcela) || 1,
-            total_parcela: Number(data.total_parcela) || 1,
-            fatura: data.fatura?.length === 7 ? `${data.fatura}-01` : data.fatura,
-            user_id: session.user.id,
-          };
-          if (editing)
+          const totalParcelas = Number(data.total_parcela) || 1;
+          const baseFatura = data.fatura?.length === 7 ? data.fatura : data.fatura?.substring(0, 7);
+
+          if (editing) {
+            const payload = {
+              ...data,
+              valor: Number(data.valor),
+              parcela: Number(data.parcela) || 1,
+              total_parcela: totalParcelas,
+              fatura: baseFatura ? `${baseFatura}-01` : data.fatura,
+              fatura_original: data.fatura_original || null,
+              user_id: session.user.id,
+            };
             updateExpense.mutate(
               { id: editing.id, ...payload },
               {
@@ -992,13 +1008,51 @@ export default function Index() {
                 },
               },
             );
-          else
+          } else if (totalParcelas > 1 && baseFatura) {
+            // Generate N installment records
+            const [year, month] = baseFatura.split("-").map(Number);
+            const installments = [];
+            for (let i = 0; i < totalParcelas; i++) {
+              const faturaDate = new Date(year, month - 1 + i, 1);
+              const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+              installments.push({
+                banco: data.banco,
+                cartao: data.cartao,
+                valor: Number(data.valor),
+                data: data.data,
+                despesa: data.despesa,
+                justificativa: data.justificativa,
+                classificacao: data.classificacao,
+                parcela: i + 1,
+                total_parcela: totalParcelas,
+                fatura: faturaStr,
+                fatura_original: null,
+                user_id: session.user.id,
+              });
+            }
+            bulkAddExpenses.mutate(installments, {
+              onSuccess: () => {
+                toast.success(`${totalParcelas} parcelas criadas!`);
+                setFormOpen(false);
+              },
+            });
+          } else {
+            const payload = {
+              ...data,
+              valor: Number(data.valor),
+              parcela: 1,
+              total_parcela: 1,
+              fatura: baseFatura ? `${baseFatura}-01` : data.fatura,
+              fatura_original: null,
+              user_id: session.user.id,
+            };
             addExpense.mutate(payload, {
               onSuccess: () => {
                 toast.success("Adicionado!");
                 setFormOpen(false);
               },
             });
+          }
         }}
       />
 

@@ -13,6 +13,7 @@ export interface Expense {
   justificativa: string | null;
   classificacao: string | null;
   fatura: string | null;
+  fatura_original: string | null;
   created_at: string;
 }
 
@@ -36,7 +37,15 @@ export function useExpenses() {
 
   const addExpense = useMutation({
     mutationFn: async (expense: ExpenseInsert) => {
-      const { error } = await supabase.from("expenses").insert(expense);
+      const { error } = await supabase.from("expenses").insert(expense as any);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+  });
+
+  const bulkAddExpenses = useMutation({
+    mutationFn: async (expenses: ExpenseInsert[]) => {
+      const { error } = await supabase.from("expenses").insert(expenses as any[]);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
@@ -44,7 +53,7 @@ export function useExpenses() {
 
   const updateExpense = useMutation({
     mutationFn: async ({ id, ...expense }: Partial<Expense> & { id: string }) => {
-      const { error } = await supabase.from("expenses").update(expense).eq("id", id);
+      const { error } = await supabase.from("expenses").update(expense as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
@@ -58,5 +67,29 @@ export function useExpenses() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
   });
 
-  return { ...query, addExpense, updateExpense, deleteExpense };
+  const advanceInstallment = useMutation({
+    mutationFn: async ({ id, currentFatura }: { id: string; currentFatura: string }) => {
+      const now = new Date();
+      const currentMonthFatura = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const { error } = await supabase
+        .from("expenses")
+        .update({ fatura: currentMonthFatura, fatura_original: currentFatura } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+  });
+
+  const revertInstallment = useMutation({
+    mutationFn: async ({ id, faturaOriginal }: { id: string; faturaOriginal: string }) => {
+      const { error } = await supabase
+        .from("expenses")
+        .update({ fatura: faturaOriginal, fatura_original: null } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
+  });
+
+  return { ...query, addExpense, bulkAddExpenses, updateExpense, deleteExpense, advanceInstallment, revertInstallment };
 }
