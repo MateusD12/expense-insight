@@ -49,7 +49,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
