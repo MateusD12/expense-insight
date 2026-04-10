@@ -33,19 +33,24 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const futureExpenses = useMemo(() => {
+    const todayStr = format(new Date(), "yyyy-MM-dd"); // Pega o dia de hoje (ex: 2026-04-10)
+
     return expenses.filter((e) => {
       if (!e.fatura) return false;
 
-      const faturaMonth = e.fatura.substring(0, 7);
-      const isFuture = faturaMonth > currentMonth;
-      const wasAdvanced = !!e.fatura_original;
-
-      // AJUSTE AQUI: Só aceita despesas com total de parcelas maior que 1
+      // Regra 1: Só compromissos parcelados (> 1 parcela)
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
 
-      return (isFuture || wasAdvanced) && isParcelamentoReal;
+      // Regra 2: É futura se a data da despesa ainda NÃO chegou (é maior que hoje)
+      const aindaNaoChegouODia = e.data > todayStr;
+
+      // Regra 3: Ou se ela foi adiantada manualmente (tem fatura original)
+      const wasAdvanced = !!e.fatura_original;
+
+      // Só mostra se for parcelado E (ainda não chegou o dia OU foi adiantada)
+      return isParcelamentoReal && (aindaNaoChegouODia || wasAdvanced);
     });
-  }, [expenses, currentMonth]);
+  }, [expenses]);
 
   const uniqueFaturas = useMemo(() => {
     const set = new Set<string>();
