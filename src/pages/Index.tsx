@@ -243,6 +243,7 @@ export default function Index() {
           parcela: Number(item.parcela) || 1,
           total_parcela: Number(item.total_parcela || item.total_parcelas) || 1,
           fatura: faturaSegura,
+          fatura_original: null,
           user_id: session.user.id,
         };
         await addExpense.mutateAsync(payload);
