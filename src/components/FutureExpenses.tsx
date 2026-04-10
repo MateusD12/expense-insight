@@ -3,7 +3,7 @@ import { type Expense, useExpenses } from "@/hooks/useExpenses";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { addMonths, format } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { Undo2, FastForward } from "lucide-react";
@@ -11,107 +11,71 @@ import { cn } from "@/lib/utils";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-const formatFatura = (d: string | null) => {
-  if (!d) return "-";
-  try {
-    return format(new Date(d.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
-  } catch {
-    return d;
-  }
-};
-
-interface FutureExpensesProps {
-  expenses: Expense[];
-}
-
-export function FutureExpenses({ expenses }: FutureExpensesProps) {
+export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
   const { advanceInstallment, revertInstallment } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
 
   const futureExpenses = useMemo(() => {
     const hoje = new Date();
-    const todayStr = format(hoje, "yyyy-MM-dd"); // Ex: 2026-04-10
-
-    // Definimos a "Fatura Atual" (aquela que você está preenchendo agora)
-    // Seguindo a sua regra de addMonths(1), hoje (Abril) a fatura atual é Maio.
-    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
+    const todayStr = format(hoje, "yyyy-MM-dd");
+    const nextBillMonth = format(addMonths(hoje, 1), "yyyy-MM"); // Se Abril, a atual é Maio (2026-05)
 
     return expenses.filter((e) => {
       if (!e.fatura) return false;
-
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
+      if (!isParcelamentoReal) return false;
+
       const faturaMes = e.fatura.substring(0, 7);
 
-      // REGRA CORRIGIDA:
-      // 1. É de uma fatura de meses lá na frente (Junho, Julho...)? -> É FUTURO.
-      const isFaturaPosterior = faturaMes > currentFaturaMonth;
-
-      // 2. É da fatura que estamos pagando (Maio), mas o dia da despesa ainda não chegou? -> É FUTURO.
-      const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
+      // REGRA:
+      // 1. Faturas distantes (Junho/26 em diante) -> É FUTURO.
+      const isVeryFuture = faturaMes > nextBillMonth;
+      // 2. Fatura de Maio, mas o dia ainda não chegou -> É FUTURO.
+      const isNextBillButDayNotReached = faturaMes === nextBillMonth && e.data > todayStr;
 
       const wasAdvanced = !!e.fatura_original;
 
-      // Unindo as regras:
-      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
+      return isVeryFuture || isNextBillButDayNotReached || wasAdvanced;
     });
   }, [expenses]);
 
   const uniqueFaturas = useMemo(
-    () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)).filter(Boolean))] as string[],
+    () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
     [futureExpenses],
   );
-
   const uniqueDespesas = useMemo(
-    () => [...new Set(futureExpenses.map((e) => e.despesa).filter(Boolean))] as string[],
+    () => [...new Set(futureExpenses.map((e) => e.despesa))].filter(Boolean).sort() as string[],
     [futureExpenses],
   );
 
-  const filtered = useMemo(
-    () =>
-      futureExpenses.filter((e) => {
-        const matchesFatura = faturaFilter === "all" || e.fatura?.substring(0, 7) === faturaFilter;
-        const matchesDespesa = despesaFilter === "all" || (e.despesa ?? "") === despesaFilter;
-        return matchesFatura && matchesDespesa;
-      }),
-    [despesaFilter, faturaFilter, futureExpenses],
-  );
-
-  const handleAdvance = (e: Expense) => {
-    if (!e.fatura) return;
-    advanceInstallment.mutate(
-      { id: e.id, currentFatura: e.fatura },
-      { onSuccess: () => toast.success("Parcela adiantada para a fatura atual!") },
+  const filtered = useMemo(() => {
+    return futureExpenses.filter(
+      (e) =>
+        (faturaFilter === "all" || e.fatura?.startsWith(faturaFilter)) &&
+        (despesaFilter === "all" || e.despesa === despesaFilter),
     );
-  };
-
-  const handleRevert = (e: Expense) => {
-    if (!e.fatura_original) return;
-    revertInstallment.mutate(
-      { id: e.id, faturaOriginal: e.fatura_original },
-      { onSuccess: () => toast.success("Parcela revertida para a fatura original!") },
-    );
-  };
+  }, [futureExpenses, faturaFilter, despesaFilter]);
 
   return (
     <div className="space-y-4">
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-3">
+      <div className="bg-white p-4 rounded-2xl shadow-sm border flex flex-col sm:flex-row gap-3">
         <Select value={faturaFilter} onValueChange={setFaturaFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10 bg-slate-50 border-none font-bold text-xs">
-            <SelectValue placeholder="Filtrar por Fatura" />
+          <SelectTrigger className="w-full sm:w-[200px] font-bold bg-slate-50 border-none">
+            <SelectValue placeholder="Fatura" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas Faturas</SelectItem>
             {uniqueFaturas.map((f) => (
               <SelectItem key={f} value={f}>
-                {formatFatura(f)}
+                {format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR })}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
         <Select value={despesaFilter} onValueChange={setDespesaFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10 bg-slate-50 border-none font-bold text-xs">
-            <SelectValue placeholder="Filtrar por Despesa" />
+          <SelectTrigger className="w-full sm:w-[200px] font-bold bg-slate-50 border-none">
+            <SelectValue placeholder="Despesa" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas Despesas</SelectItem>
@@ -123,87 +87,65 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
           </SelectContent>
         </Select>
       </div>
-
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="min-w-[700px]">
-            <TableHeader className="bg-slate-50">
+      <div className="bg-white rounded-3xl shadow-sm border overflow-hidden">
+        <Table>
+          <TableHeader className="bg-slate-50">
+            <TableRow>
+              <TableHead className="font-black text-[10px] uppercase py-4">Despesa</TableHead>
+              <TableHead className="font-black text-[10px] uppercase text-right">Valor</TableHead>
+              <TableHead className="font-black text-[10px] uppercase text-center">Parcela</TableHead>
+              <TableHead className="font-black text-[10px] uppercase">Fatura</TableHead>
+              <TableHead className="font-black text-[10px] uppercase text-center">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.length === 0 ? (
               <TableRow>
-                <TableHead className="font-black text-[10px] py-4">Despesa</TableHead>
-                <TableHead className="font-black text-[10px]">Banco</TableHead>
-                <TableHead className="font-black text-[10px] text-right">Valor</TableHead>
-                <TableHead className="font-black text-[10px] text-center">Parcela</TableHead>
-                <TableHead className="font-black text-[10px]">Fatura</TableHead>
-                <TableHead className="font-black text-[10px] text-center">Ações</TableHead>
+                <TableCell colSpan={5} className="text-center py-10 text-slate-400 font-bold italic">
+                  Nenhuma parcela futura encontrada.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-400 font-bold">
-                    Nenhuma parcela futura encontrada.
+            ) : (
+              filtered.map((e) => (
+                <TableRow
+                  key={e.id}
+                  className={cn("hover:bg-blue-50/50 transition-colors", !!e.fatura_original && "bg-amber-50/50")}
+                >
+                  <TableCell className="font-bold text-sm">{e.despesa}</TableCell>
+                  <TableCell className="text-right font-black text-blue-600">{formatCurrency(e.valor)}</TableCell>
+                  <TableCell className="text-center text-xs text-slate-400 font-bold">
+                    {e.parcela}/{e.total_parcela}
+                  </TableCell>
+                  <TableCell className="text-xs font-bold uppercase">
+                    {format(new Date(e.fatura!.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR })}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {e.fatura_original ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-amber-600 font-bold text-xs h-8"
+                        onClick={() => revertInstallment.mutate({ id: e.id, faturaOriginal: e.fatura_original! })}
+                      >
+                        <Undo2 size={14} className="mr-1" /> Reverter
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-blue-600 font-bold text-xs h-8"
+                        onClick={() => advanceInstallment.mutate({ id: e.id, currentFatura: e.fatura! })}
+                      >
+                        <FastForward size={14} className="mr-1" /> Adiantar
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
-              ) : (
-                filtered.map((e) => {
-                  const isAdvanced = !!e.fatura_original;
-                  return (
-                    <TableRow
-                      key={e.id}
-                      className={cn("hover:bg-blue-50/50 transition-colors", isAdvanced && "bg-amber-50/50")}
-                    >
-                      <TableCell className="font-bold text-sm">{e.despesa || "-"}</TableCell>
-                      <TableCell className="font-bold text-xs">{e.banco}</TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell className="text-center font-bold text-xs text-slate-500">
-                        {e.parcela}/{e.total_parcela}
-                      </TableCell>
-                      <TableCell className="font-bold text-xs">
-                        <span className={cn(isAdvanced && "text-amber-600")}>{formatFatura(e.fatura)}</span>
-                        {isAdvanced && (
-                          <span className="text-[9px] text-slate-400 ml-1">
-                            (era {formatFatura(e.fatura_original)})
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {isAdvanced ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-bold text-xs h-8 gap-1"
-                            onClick={() => handleRevert(e)}
-                          >
-                            <Undo2 size={14} /> Reverter
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold text-xs h-8 gap-1"
-                            onClick={() => handleAdvance(e)}
-                          >
-                            <FastForward size={14} /> Adiantar
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </div>
-
-      {filtered.length > 0 && (
-        <div className="text-center text-xs text-slate-400 font-bold">
-          {filtered.length} parcela{filtered.length !== 1 ? "s" : ""} futura{filtered.length !== 1 ? "s" : ""} • Total:{" "}
-          {formatCurrency(filtered.reduce((acc, e) => acc + Number(e.valor), 0))}
-        </div>
-      )}
     </div>
   );
 }
