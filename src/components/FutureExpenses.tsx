@@ -1,216 +1,263 @@
-import { useMemo, useState } from "react";
-import { type Expense, useExpenses } from "@/hooks/useExpenses";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import React, { useState, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { addMonths, format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
-import { Undo2, FastForward } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Check, ChevronsUpDown, Plus, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { addMonths, format } from "date-fns";
 
-const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
-
-const formatFatura = (d: string | null) => {
-  if (!d) return "-";
-  try {
-    return format(new Date(d.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR });
-  } catch {
-    return d;
-  }
-};
-
-interface FutureExpensesProps {
-  expenses: Expense[];
+interface ExpenseFormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialData?: Expense | null;
+  onSubmit: (data: any) => void;
 }
 
-export function FutureExpenses({ expenses }: FutureExpensesProps) {
-  const { advanceInstallment, revertInstallment } = useExpenses();
-  const [faturaFilter, setFaturaFilter] = useState("all");
-  const [despesaFilter, setDespesaFilter] = useState("all");
+export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: ExpenseFormProps) {
+  const { data: allExpenses = [], bulkAddExpenses, addExpense, updateExpense } = useExpenses();
+  const [inputMensal, setInputMensal] = useState("");
+  const [inputTotal, setInputTotal] = useState("");
 
-  const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const [formData, setFormData] = useState<Partial<Expense>>({
+    banco: "",
+    cartao: "",
+    valor: 0,
+    data: new Date().toISOString().split("T")[0],
+    despesa: "",
+    justificativa: "",
+    classificacao: "",
+    parcela: 1,
+    total_parcela: 1,
+    fatura: format(addMonths(new Date(), 1), "yyyy-MM"),
+  });
 
-  const futureExpenses = useMemo(() => {
-    const hoje = new Date();
-    const todayStr = format(hoje, "yyyy-MM-dd"); // Ex: 2026-04-10
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        data: initialData.data.substring(0, 10),
+        fatura: initialData.fatura?.substring(0, 7),
+      });
+      setInputMensal(initialData.valor.toString());
+      setInputTotal((initialData.valor * (initialData.total_parcela || 1)).toFixed(2));
+    } else {
+      setFormData({
+        banco: "",
+        cartao: "",
+        valor: 0,
+        data: new Date().toISOString().split("T")[0],
+        despesa: "",
+        justificativa: "",
+        classificacao: "",
+        parcela: 1,
+        total_parcela: 1,
+        fatura: format(addMonths(new Date(), 1), "yyyy-MM"),
+      });
+      setInputMensal("");
+      setInputTotal("");
+    }
+  }, [initialData, open]);
 
-    // Definimos a "Fatura Atual" (aquela que você está preenchendo agora)
-    // Seguindo a sua regra de addMonths(1), hoje (Abril) a fatura atual é Maio.
-    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
+  const handleSave = () => {
+    const totalParcelas = Number(formData.total_parcela) || 1;
+    const baseFatura = formData.fatura; // Ex: "2026-05"
 
-    return expenses.filter((e) => {
-      if (!e.fatura) return false;
+    if (initialData) {
+      onSubmit({ ...formData, valor: Number(formData.valor) });
+    } else if (totalParcelas > 1 && baseFatura) {
+      const installments = [];
+      const [year, month] = baseFatura.split("-").map(Number);
+      const purchaseDate = new Date(formData.data + "T12:00:00");
 
-      const isParcelamentoReal = (e.total_parcela || 0) > 1;
-      const faturaMes = e.fatura.substring(0, 7);
+      for (let i = 0; i < totalParcelas; i++) {
+        // Incrementa tanto a fatura quanto a data real da despesa
+        const currentFatura = format(new Date(year, month - 1 + i, 1), "yyyy-MM-dd");
+        const currentData = format(addMonths(purchaseDate, i), "yyyy-MM-dd");
 
-      // REGRA CORRIGIDA:
-      // 1. É de uma fatura de meses lá na frente (Junho, Julho...)? -> É FUTURO.
-      const isFaturaPosterior = faturaMes > currentFaturaMonth;
-
-      // 2. É da fatura que estamos pagando (Maio), mas o dia da despesa ainda não chegou? -> É FUTURO.
-      const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
-
-      const wasAdvanced = !!e.fatura_original;
-
-      // Unindo as regras:
-      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
-    });
-  }, [expenses]);
-
-  const uniqueFaturas = useMemo(() => {
-    const set = new Set<string>();
-    futureExpenses.forEach((e) => {
-      if (e.fatura) set.add(e.fatura.substring(0, 7));
-      if (e.fatura_original) set.add(e.fatura_original.substring(0, 7));
-    });
-    return [...set].sort();
-  }, [futureExpenses]);
-
-  const uniqueDespesas = useMemo(() => {
-    return [...new Set(futureExpenses.map((e) => e.despesa).filter(Boolean))] as string[];
-  }, [futureExpenses]);
-
-  const filtered = useMemo(() => {
-    return futureExpenses.filter((e) => {
-      const matchFatura =
-        faturaFilter === "all" ||
-        e.fatura?.substring(0, 7) === faturaFilter ||
-        e.fatura_original?.substring(0, 7) === faturaFilter;
-      const matchDespesa = despesaFilter === "all" || e.despesa === despesaFilter;
-      return matchFatura && matchDespesa;
-    });
-  }, [futureExpenses, faturaFilter, despesaFilter]);
-
-  const handleAdvance = (e: Expense) => {
-    if (!e.fatura) return;
-    advanceInstallment.mutate(
-      { id: e.id, currentFatura: e.fatura },
-      { onSuccess: () => toast.success("Parcela adiantada para a fatura atual!") },
-    );
+        installments.push({
+          ...formData,
+          valor: Number(formData.valor),
+          parcela: i + 1,
+          total_parcela: totalParcelas,
+          data: currentData,
+          fatura: currentFatura,
+        });
+      }
+      bulkAddExpenses.mutate(installments, { onSuccess: () => onOpenChange(false) });
+    } else {
+      onSubmit({ ...formData, valor: Number(formData.valor) });
+    }
   };
 
-  const handleRevert = (e: Expense) => {
-    if (!e.fatura_original) return;
-    revertInstallment.mutate(
-      { id: e.id, faturaOriginal: e.fatura_original },
-      { onSuccess: () => toast.success("Parcela revertida para a fatura original!") },
+  const getUnique = (key: keyof Expense) =>
+    Array.from(new Set(allExpenses.map((e) => e[key]).filter(Boolean))).sort() as string[];
+
+  const ComboboxField = ({ label, value, options, onChange }: any) => {
+    const [openCombo, setOpenCombo] = useState(false);
+    const [searchValue, setSearchValue] = useState("");
+    return (
+      <div className="space-y-2 flex flex-col w-full">
+        <Label className="text-[10px] font-black text-slate-500 uppercase">{label}</Label>
+        <Popover open={openCombo} onOpenChange={setOpenCombo}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="w-full justify-between bg-slate-50 border-slate-200">
+              <span className="truncate">{value || "Selecionar..."}</span>
+              <ChevronsUpDown className="h-4 w-4 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-full p-0">
+            <Command>
+              <CommandInput placeholder={`Buscar ${label}...`} onValueChange={setSearchValue} />
+              <CommandList>
+                <CommandEmpty className="p-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start text-blue-600"
+                    onClick={() => {
+                      onChange(searchValue);
+                      setOpenCombo(false);
+                    }}
+                  >
+                    <Plus className="mr-2 h-4 w-4" /> Adicionar "{searchValue}"
+                  </Button>
+                </CommandEmpty>
+                <CommandGroup>
+                  {options.map((o: string) => (
+                    <CommandItem
+                      key={o}
+                      onSelect={() => {
+                        onChange(o);
+                        setOpenCombo(false);
+                      }}
+                    >
+                      <Check className={cn("mr-2 h-4 w-4", value === o ? "opacity-100" : "opacity-0")} /> {o}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      </div>
     );
   };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-3">
-        <Select value={faturaFilter} onValueChange={setFaturaFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10 bg-slate-50 border-none font-bold text-xs">
-            <SelectValue placeholder="Filtrar por Fatura" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas Faturas</SelectItem>
-            {uniqueFaturas.map((f) => (
-              <SelectItem key={f} value={f}>
-                {formatFatura(f)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={despesaFilter} onValueChange={setDespesaFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] h-10 bg-slate-50 border-none font-bold text-xs">
-            <SelectValue placeholder="Filtrar por Despesa" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas Despesas</SelectItem>
-            {uniqueDespesas.map((d) => (
-              <SelectItem key={d} value={d}>
-                {d}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="min-w-[700px]">
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead className="font-black text-[10px] py-4">Despesa</TableHead>
-                <TableHead className="font-black text-[10px]">Banco</TableHead>
-                <TableHead className="font-black text-[10px] text-right">Valor</TableHead>
-                <TableHead className="font-black text-[10px] text-center">Parcela</TableHead>
-                <TableHead className="font-black text-[10px]">Fatura</TableHead>
-                <TableHead className="font-black text-[10px] text-center">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10 text-slate-400 font-bold">
-                    Nenhuma parcela futura encontrada.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((e) => {
-                  const isAdvanced = !!e.fatura_original;
-                  return (
-                    <TableRow
-                      key={e.id}
-                      className={cn("hover:bg-blue-50/50 transition-colors", isAdvanced && "bg-amber-50/50")}
-                    >
-                      <TableCell className="font-bold text-sm">{e.despesa || "-"}</TableCell>
-                      <TableCell className="font-bold text-xs">{e.banco}</TableCell>
-                      <TableCell className="text-right font-black text-blue-600">
-                        {formatCurrency(Number(e.valor))}
-                      </TableCell>
-                      <TableCell className="text-center font-bold text-xs text-slate-500">
-                        {e.parcela}/{e.total_parcela}
-                      </TableCell>
-                      <TableCell className="font-bold text-xs">
-                        <span className={cn(isAdvanced && "text-amber-600")}>{formatFatura(e.fatura)}</span>
-                        {isAdvanced && (
-                          <span className="text-[9px] text-slate-400 ml-1">
-                            (era {formatFatura(e.fatura_original)})
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {isAdvanced ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 font-bold text-xs h-8 gap-1"
-                            onClick={() => handleRevert(e)}
-                          >
-                            <Undo2 size={14} /> Reverter
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold text-xs h-8 gap-1"
-                            onClick={() => handleAdvance(e)}
-                          >
-                            <FastForward size={14} /> Adiantar
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-black uppercase">{initialData ? "Editar" : "Novo"} Gasto</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase">Parcela/Total</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  value={formData.parcela}
+                  onChange={(e) => setFormData({ ...formData, parcela: Number(e.target.value) })}
+                  className="bg-white"
+                />
+                <span className="font-bold text-slate-400">/</span>
+                <Input
+                  type="number"
+                  value={formData.total_parcela}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setFormData({ ...formData, total_parcela: val });
+                    setInputTotal((parseFloat(inputMensal) * val).toFixed(2));
+                  }}
+                  className="bg-white"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-blue-600">Valor Mensal</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={inputMensal}
+                onChange={(e) => {
+                  setInputMensal(e.target.value);
+                  const num = parseFloat(e.target.value) || 0;
+                  setFormData({ ...formData, valor: num });
+                  setInputTotal((num * (formData.total_parcela || 1)).toFixed(2));
+                }}
+                className="border-blue-200 font-bold text-blue-600"
+              />
+            </div>
+          </div>
+          <ComboboxField
+            label="Descrição"
+            value={formData.despesa}
+            options={getUnique("despesa")}
+            onChange={(v: any) => setFormData({ ...formData, despesa: v })}
+          />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase">Data Compra</Label>
+              <Input
+                type="date"
+                value={formData.data}
+                onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase">Mês Fatura</Label>
+              <Input
+                type="month"
+                value={formData.fatura}
+                onChange={(e) => setFormData({ ...formData, fatura: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <ComboboxField
+              label="Banco"
+              value={formData.banco}
+              options={getUnique("banco")}
+              onChange={(v: any) => setFormData({ ...formData, banco: v })}
+            />
+            <ComboboxField
+              label="Cartão"
+              value={formData.cartao}
+              options={getUnique("cartao")}
+              onChange={(v: any) => setFormData({ ...formData, cartao: v })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <ComboboxField
+              label="Categoria"
+              value={formData.classificacao}
+              options={getUnique("classificacao")}
+              onChange={(v: any) => setFormData({ ...formData, classificacao: v })}
+            />
+            <ComboboxField
+              label="Justificativa"
+              value={formData.justificativa}
+              options={getUnique("justificativa")}
+              onChange={(v: any) => setFormData({ ...formData, justificativa: v })}
+            />
+          </div>
         </div>
-      </div>
-
-      {filtered.length > 0 && (
-        <div className="text-center text-xs text-slate-400 font-bold">
-          {filtered.length} parcela{filtered.length !== 1 ? "s" : ""} futura{filtered.length !== 1 ? "s" : ""} • Total:{" "}
-          {formatCurrency(filtered.reduce((acc, e) => acc + Number(e.valor), 0))}
-        </div>
-      )}
-    </div>
+        <DialogFooter>
+          <Button onClick={handleSave} className="bg-blue-600 font-bold w-full">
+            Salvar Gasto
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
