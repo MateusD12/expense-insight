@@ -27,6 +27,7 @@ export type Database = {
           justificativa: string | null
           parcela: number
           total_parcela: number
+          user_id: string | null
           valor: number
         }
         Insert: {
@@ -41,6 +42,7 @@ export type Database = {
           justificativa?: string | null
           parcela?: number
           total_parcela?: number
+          user_id?: string | null
           valor?: number
         }
         Update: {
@@ -55,7 +57,26 @@ export type Database = {
           justificativa?: string | null
           parcela?: number
           total_parcela?: number
+          user_id?: string | null
           valor?: number
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          budget: number | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          budget?: number | null
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          budget?: number | null
+          id?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
