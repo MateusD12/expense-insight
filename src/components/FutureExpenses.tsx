@@ -56,7 +56,7 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
       const wasAdvanced = !!e.fatura_original;
 
       // Unindo as regras:
-      return isParceladoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
+      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);
 
