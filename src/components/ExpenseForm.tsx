@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { addMonths, format } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -65,17 +66,22 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       setInputMensal(vlr.toString());
       setInputTotal((vlr * totParc).toFixed(2));
     } else {
+      // LÓGICA PARA FATURA NO PRÓXIMO MÊS
+      const hoje = new Date();
+      const proximoMes = addMonths(hoje, 1);
+      const faturaPadrao = format(proximoMes, "yyyy-MM");
+
       setFormData({
         banco: "",
         cartao: "",
         valor: 0,
-        data: new Date().toISOString().split("T")[0],
+        data: hoje.toISOString().split("T")[0], // Data da compra continua sendo HOJE
         despesa: "",
         justificativa: "",
         classificacao: "",
         parcela: 1,
         total_parcela: 1,
-        fatura: new Date().toISOString().slice(0, 7),
+        fatura: faturaPadrao, // AQUI: Já sugere a fatura do mês que vem
       });
       setInputMensal("");
       setInputTotal("");
