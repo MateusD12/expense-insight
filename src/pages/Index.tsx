@@ -289,20 +289,24 @@ export default function Index() {
   const filteredAndSorted = useMemo(() => {
     const hoje = new Date();
     const todayStr = format(hoje, "yyyy-MM-dd");
-    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM");
+    const faturaAtual = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
 
     let result = normalizedExpenses.filter((e) => {
-      // REGRA PARA APARECER NO DASHBOARD/TABELA:
       const faturaMes = e.fatura?.substring(0, 7);
-      const isAVista = (e.total_parcela || 0) <= 1;
-      const jaChegouODia = e.data <= todayStr;
 
-      // Mostra se: For à vista OU se o dia já chegou (mesmo que seja fatura futura) OU se foi adiantado
-      const isPresente = isAVista || jaChegouODia || !!e.fatura_original;
+      // REGRA DO DASHBOARD:
+      // 1. Mostra se for compra à vista (1/1)
+      const isAVista = (e.total_parcela || 0) <= 1;
+      // 2. Mostra se a fatura já passou ou é a atual E o dia já chegou
+      const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
+      // 3. Mostra se foi adiantado manualmente
+      const isAdvanced = !!e.fatura_original;
+
+      const isPresente = isAVista || jaVenceuODia || isAdvanced;
 
       if (!isPresente) return false;
 
-      // --- MANTENHA O RESTANTE DOS FILTROS (Search, Banco, etc) ABAIXO ---
+      // --- MANTENHA OS FILTROS DE BUSCA ABAIXO ---
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
@@ -312,7 +316,7 @@ export default function Index() {
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
-    // ... restante do sort ...
+    // ... o restante do sort continua igual ...
 
     result.sort((a: any, b: any) => {
       if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
