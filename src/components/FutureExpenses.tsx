@@ -19,20 +19,25 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
   const futureExpenses = useMemo(() => {
     const hoje = new Date();
     const todayStr = format(hoje, "yyyy-MM-dd");
+    // Define a fatura que você está pagando agora (Ex: Abril vira Maio)
     const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM");
 
     return expenses.filter((e) => {
       if (!e.fatura) return false;
 
-      // CORREÇÃO DO NOME AQUI:
+      // Regra 1: Só mostra parcelados (> 1 parcela)
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
       const faturaMes = e.fatura.substring(0, 7);
 
+      // Regra 2: É futuro se a FATURA for de Junho em diante
       const isFaturaPosterior = faturaMes > currentFaturaMonth;
+
+      // Regra 3: É futuro se a FATURA for Maio, mas o DIA da despesa ainda não chegou
       const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
+
       const wasAdvanced = !!e.fatura_original;
 
-      // USE O NOME CORRETO AQUI TAMBÉM:
+      // Unindo as regras (isParcelamentoReal é OBRIGATÓRIO)
       return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);

@@ -80,21 +80,21 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       const purchaseDate = parseISO(formData.data!);
 
       for (let i = 0; i < totalParcelas; i++) {
-        // Ajusta a data real da despesa: Parcela 1 (hoje), Parcela 2 (mês que vem), etc.
-        const dataCompra = parseISO(data.data);
-        const dataDaParcela = format(addMonths(dataCompra, i), "yyyy-MM-dd");
+        // Incrementa o DIA real da despesa para cada parcela
+        const dataOriginal = parseISO(formData.data!);
+        const dataDaParcela = format(addMonths(dataOriginal, i), "yyyy-MM-dd");
 
-        const faturaDate = new Date(year, month - 1 + i, 1);
-        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+        // Incrementa o MÊS da fatura
+        const [ano, mes] = (formData.fatura || "").split("-").map(Number);
+        const dataFatura = format(new Date(ano, mes - 1 + i, 1), "yyyy-MM-dd");
 
         installments.push({
-          ...data,
-          valor: Number(data.valor),
-          data: dataDaParcela, // CADA PARCELA TERÁ SEU DIA PRÓPRIO
+          ...formData,
+          valor: Number(formData.valor),
           parcela: i + 1,
           total_parcela: totalParcelas,
-          fatura: faturaStr,
-          user_id: session.user.id,
+          data: dataDaParcela, // Agora Parcela 1 é Abril, Parcela 2 é Maio...
+          fatura: dataFatura,
         });
       }
       bulkAddExpenses.mutate(installments, { onSuccess: () => onOpenChange(false) });

@@ -287,18 +287,24 @@ export default function Index() {
   };
 
   const filteredAndSorted = useMemo(() => {
-    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const hoje = new Date();
+    const todayStr = format(hoje, "yyyy-MM-dd");
+    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM");
 
     let result = normalizedExpenses.filter((e) => {
-      // REGRA: Só entra no Dashboard/Tabela se o dia já chegou ou foi adiantado
-      const jaAconteceu = e.data <= todayStr || !!e.fatura_original;
-      if (!jaAconteceu) return false;
+      // REGRA PARA APARECER NO DASHBOARD/TABELA:
+      const faturaMes = e.fatura?.substring(0, 7);
+      const isAVista = (e.total_parcela || 0) <= 1;
+      const jaChegouODia = e.data <= todayStr;
 
+      // Mostra se: For à vista OU se o dia já chegou (mesmo que seja fatura futura) OU se foi adiantado
+      const isPresente = isAVista || jaChegouODia || !!e.fatura_original;
+
+      if (!isPresente) return false;
+
+      // --- MANTENHA O RESTANTE DOS FILTROS (Search, Banco, etc) ABAIXO ---
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
-        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
-      // ... mantenha o restante dos filtros (matchBanco, matchCat, etc) igual ...
-      e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
@@ -306,6 +312,7 @@ export default function Index() {
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
+    // ... restante do sort ...
 
     result.sort((a: any, b: any) => {
       if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
