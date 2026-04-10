@@ -93,7 +93,14 @@ export default function Index() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup" | "recovery">("login");
 
-  const { data: allExpenses = [], isLoading, addExpense, bulkAddExpenses, updateExpense, deleteExpense } = useExpenses();
+  const {
+    data: allExpenses = [],
+    isLoading,
+    addExpense,
+    bulkAddExpenses,
+    updateExpense,
+    deleteExpense,
+  } = useExpenses();
 
   const [filters, setFilters] = useState({
     search: "",
@@ -280,35 +287,39 @@ export default function Index() {
   };
 
   const filteredAndSorted = useMemo(() => {
+    const hoje = new Date();
+    const currentDay = hoje.getDate();
+    const currentInvoiceMonth = format(addMonths(hoje, 1), "yyyy-MM");
+
     let result = normalizedExpenses.filter((e) => {
+      // FILTRO DE "PRESENTE":
+      // Mostra se:
+      // 1. É compra à vista (parcela 1/1)
+      const isAVista = (e.total_parcela || 0) <= 1;
+      // 2. A fatura já passou (meses anteriores)
+      const isFaturaPassada = e.fatura && e.fatura.substring(0, 7) < currentInvoiceMonth;
+      // 3. É a fatura atual (Maio) e o dia já chegou/passou
+      const isFaturaAtualEDiaChegou =
+        e.fatura && e.fatura.substring(0, 7) === currentInvoiceMonth && parseInt(e.data.substring(8, 10)) <= currentDay;
+      // 4. Foi adiantado manualmente
+      const isAdvanced = !!e.fatura_original;
+
+      const isPresent = isAVista || isFaturaPassada || isFaturaAtualEDiaChegou || isAdvanced;
+
+      if (!isPresent) return false;
+
+      // ... MANTENHA O RESTANTE DOS SEUS FILTROS (matchSearch, matchBanco, etc) ...
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
       const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
-      const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
-      const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
-      return matchSearch && matchBanco && matchCat && matchJust && matchFatura && matchDataInicio && matchDataFim;
+
+      return matchSearch && matchBanco && matchCat && matchFatura;
     });
 
-    result.sort((a: any, b: any) => {
-      if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
-        const aVal = Number(a[sortConfig.key]) || 0;
-        const bVal = Number(b[sortConfig.key]) || 0;
-        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-      }
-      if (sortConfig.key === "data") {
-        return sortConfig.direction === "asc"
-          ? new Date(a.data).getTime() - new Date(b.data).getTime()
-          : new Date(b.data).getTime() - new Date(a.data).getTime();
-      }
-      const aVal = String(a[sortConfig.key] || "").toLowerCase();
-      const bVal = String(b[sortConfig.key] || "").toLowerCase();
-      return sortConfig.direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    });
-
+    // ... MANTENHA A ORDENAÇÃO ...
     return result;
   }, [normalizedExpenses, filters, sortConfig]);
 
