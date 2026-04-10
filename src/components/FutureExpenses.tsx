@@ -33,22 +33,25 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const futureExpenses = useMemo(() => {
-    const todayStr = format(new Date(), "yyyy-MM-dd"); // Pega o dia de hoje (ex: 2026-04-10)
+    const todayStr = format(new Date(), "yyyy-MM-dd"); // 2026-04-10
+    const currentMonth = todayStr.substring(0, 7); // 2026-04
 
     return expenses.filter((e) => {
       if (!e.fatura) return false;
 
-      // Regra 1: Só compromissos parcelados (> 1 parcela)
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
+      const faturaMes = e.fatura.substring(0, 7);
 
-      // Regra 2: É futura se a data da despesa ainda NÃO chegou (é maior que hoje)
-      const aindaNaoChegouODia = e.data > todayStr;
+      // REGRA INTELIGENTE:
+      // 1. É de uma fatura de meses próximos? (Ex: Maio, Junho...) -> É FUTURA.
+      // 2. É da fatura deste mês, mas o dia ainda não chegou? (Ex: Compra agendada p/ dia 20) -> É FUTURA.
+      const isFuturoPelaFatura = faturaMes > currentMonth;
+      const isFuturoPeloDia = faturaMes === currentMonth && e.data > todayStr;
 
-      // Regra 3: Ou se ela foi adiantada manualmente (tem fatura original)
       const wasAdvanced = !!e.fatura_original;
 
-      // Só mostra se for parcelado E (ainda não chegou o dia OU foi adiantada)
-      return isParcelamentoReal && (aindaNaoChegouODia || wasAdvanced);
+      // Só mostra se for parcelado (>1) E (for futuro real OU foi adiantado)
+      return isParcelamentoReal && (isFuturoPelaFatura || isFuturoPeloDia || wasAdvanced);
     });
   }, [expenses]);
 
