@@ -3,7 +3,7 @@ import { type Expense, useExpenses } from "@/hooks/useExpenses";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { format } from "date-fns";
+import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { Undo2, FastForward } from "lucide-react";
@@ -56,7 +56,7 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
       const wasAdvanced = !!e.fatura_original;
 
       // Unindo as regras:
-      return isParceladoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
+      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);
 
