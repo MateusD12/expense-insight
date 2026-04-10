@@ -33,23 +33,30 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const futureExpenses = useMemo(() => {
-    // Pegamos a data exata de hoje (Ex: 2026-04-10)
-    const todayStr = format(new Date(), "yyyy-MM-dd");
+    const hoje = new Date();
+    const todayStr = format(hoje, "yyyy-MM-dd"); // Ex: 2026-04-10
+
+    // Definimos a "Fatura Atual" (aquela que você está preenchendo agora)
+    // Seguindo a sua regra de addMonths(1), hoje (Abril) a fatura atual é Maio.
+    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
 
     return expenses.filter((e) => {
       if (!e.fatura) return false;
 
-      // Regra 1: Só parcelamentos reais (mais de 1 parcela)
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
+      const faturaMes = e.fatura.substring(0, 7);
 
-      // Regra 2: Só é futuro se o dia da despesa AINDA NÃO CHEGOU
-      const aindaNaoChegouODia = e.data > todayStr;
+      // REGRA CORRIGIDA:
+      // 1. É de uma fatura de meses lá na frente (Junho, Julho...)? -> É FUTURO.
+      const isFaturaPosterior = faturaMes > currentFaturaMonth;
 
-      // Regra 3: Ou se você adiantou ela manualmente
+      // 2. É da fatura que estamos pagando (Maio), mas o dia da despesa ainda não chegou? -> É FUTURO.
+      const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
+
       const wasAdvanced = !!e.fatura_original;
 
       // Unindo as regras:
-      return isParcelamentoReal && (aindaNaoChegouODia || wasAdvanced);
+      return isParceladoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);
 
