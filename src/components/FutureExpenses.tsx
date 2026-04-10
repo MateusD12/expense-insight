@@ -19,24 +19,21 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
   const futureExpenses = useMemo(() => {
     const hoje = new Date();
     const todayStr = format(hoje, "yyyy-MM-dd");
-    const nextBillMonth = format(addMonths(hoje, 1), "yyyy-MM"); // Se Abril, a atual é Maio (2026-05)
+    const currentFaturaMonth = format(addMonths(hoje, 1), "yyyy-MM");
 
     return expenses.filter((e) => {
       if (!e.fatura) return false;
-      const isParcelamentoReal = (e.total_parcela || 0) > 1;
-      if (!isParcelamentoReal) return false;
 
+      // ATENÇÃO: Verifique se o nome aqui e lá embaixo é o mesmo
+      const isParcelamentoReal = (e.total_parcela || 0) > 1;
       const faturaMes = e.fatura.substring(0, 7);
 
-      // REGRA:
-      // 1. Faturas distantes (Junho/26 em diante) -> É FUTURO.
-      const isVeryFuture = faturaMes > nextBillMonth;
-      // 2. Fatura de Maio, mas o dia ainda não chegou -> É FUTURO.
-      const isNextBillButDayNotReached = faturaMes === nextBillMonth && e.data > todayStr;
-
+      const isFaturaPosterior = faturaMes > currentFaturaMonth;
+      const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
       const wasAdvanced = !!e.fatura_original;
 
-      return isVeryFuture || isNextBillButDayNotReached || wasAdvanced;
+      // AQUI: use o nome correto "isParcelamentoReal"
+      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);
 
