@@ -1,61 +1,63 @@
 
 
-## Plano: Redesign Visual — Dashboard e Tabela em Página Única
+## Plano: Sistema de Parcelas Futuras com Geração Automática
 
-Baseado nas capturas de tela de referência, o layout atual (duas rotas separadas) será unificado em uma única página com abas, header colorido, cards de resumo e gráficos estilizados.
+### Resumo
 
-### Mudanças Principais
+Quando o usuário cadastrar uma despesa parcelada, o sistema vai gerar automaticamente os registros das parcelas futuras (cada uma com sua fatura correspondente). Uma nova aba "Despesas Futuras" permitirá visualizar, filtrar e gerenciar essas parcelas. O usuário poderá "adiantar" parcelas para a fatura atual ou reverter o adiantamento.
 
-**1. Página única com abas (substituir rotas separadas)**
-- Remover rotas `/planilha` e `/dashboard` — tudo fica em `/` em uma única página `Index.tsx`
-- Usar `Tabs` do shadcn para alternar entre "Dashboard" e "Tabela"
-- Remover `AppLayout.tsx` com navegação por rotas
+### Como vai funcionar
 
-**2. Header estilizado**
-- Banner azul/gradiente com título "💳 Controle de Gastos" e subtítulo
-- Botões "Novo Gasto" e "Importar Planilha" dentro do header
+1. **Ao salvar uma despesa parcelada** (ex: 6 parcelas, data 11/10/2025), o sistema cria automaticamente 6 registros no banco — parcela 1/6 na fatura out/2025, parcela 2/6 na fatura nov/2025, etc.
 
-**3. Filtros globais (abaixo do header)**
-- Barra de busca por texto (despesa)
-- Selects: Banco, Cartão, Categoria, Fatura
-- Filtros aplicam tanto na aba Dashboard quanto na Tabela
+2. **Nova aba "Futuras"** ao lado de "Dashboard" e "Tabela":
+   - Mostra apenas parcelas com fatura posterior ao mês atual
+   - Filtros: por fatura futura específica, por despesa (para ver até quando vai)
+   - Cada linha mostra: despesa, valor, parcela X/Y, fatura destino
 
-**4. Cards de resumo (4 cards coloridos)**
-- **Total em Gastos** (azul) — soma dos valores filtrados
-- **Transações** (verde) — contagem de registros
-- **Bancos** (verde) — quantidade de bancos distintos
-- **Categorias** (laranja) — quantidade de classificações distintas
+3. **Adiantar parcela**: checkbox ou botão em cada linha que move a parcela para a fatura do mês atual. O campo `fatura` é atualizado, e um novo campo `fatura_original` guarda a fatura programada.
 
-**5. Aba Dashboard — gráficos redesenhados**
-- **Gastos por Banco/Cartão**: Donut chart (rosca) com legenda "Banco ••cartão"
-- **Evolução por Fatura**: Area chart com gradiente (roxo/lilás)
-- **Top 10 por Categoria**: Lista ranqueada com barras coloridas horizontais e valores à direita (não Recharts BarChart — custom styled bars)
-- **Top 10 por Justificativa**: Mesmo estilo de lista ranqueada
+4. **Reverter adiantamento**: se a parcela foi adiantada, aparece um botão para devolver à fatura original (restaura `fatura` com o valor de `fatura_original`).
 
-**6. Aba Tabela — tabela de gastos**
-- Mesma tabela atual com todas as colunas
-- Valores em verde (R$), classificação com badges coloridos
-- Ações de editar/excluir mantidas
+### Mudanças técnicas
 
-### Arquivos Afetados
+**Banco de dados (migration)**:
+- Adicionar coluna `fatura_original` (date, nullable) na tabela `expenses` — guarda a fatura programada original quando uma parcela é adiantada
 
-| Arquivo | Ação |
-|---------|------|
-| `src/pages/Index.tsx` | **Reescrever** — página principal com tabs, header, cards, filtros |
-| `src/pages/Planilha.tsx` | **Remover** — conteúdo migrado para Index |
-| `src/pages/Dashboard.tsx` | **Remover** — conteúdo migrado para Index |
-| `src/components/AppLayout.tsx` | **Simplificar** — remover nav, manter shell mínimo |
-| `src/components/DashboardFilters.tsx` | **Adaptar** — adicionar campo de busca |
-| `src/components/SummaryCards.tsx` | **Criar** — 4 cards coloridos |
-| `src/components/RankedList.tsx` | **Criar** — componente de lista ranqueada com barras coloridas |
-| `src/App.tsx` | **Simplificar** — rota única `/` |
+**`ExpenseForm.tsx`**:
+- Ao salvar despesa com `total_parcela > 1`, criar N registros automaticamente, cada um com parcela incrementada e fatura avançada mês a mês
 
-### Detalhes Técnicos
+**`src/pages/Index.tsx`**:
+- Adicionar nova aba "Futuras" no TabsList
+- Componente da aba filtra despesas com fatura > mês atual
+- Filtros por fatura futura e por nome de despesa
+- Botão "Adiantar" que faz update da fatura para o mês atual e salva fatura_original
+- Botão "Reverter" (visível quando fatura_original existe) que restaura a fatura original
 
-- Donut chart: Recharts `PieChart` com `innerRadius` para efeito rosca
-- Area chart: Recharts `AreaChart` com `linearGradient` fill
-- Top 10 lists: Componente custom HTML/CSS com barras de progresso coloridas (não Recharts)
-- Cards de resumo: Grid 2x2 com cores de fundo via Tailwind (`bg-blue-500`, `bg-green-500`, `bg-orange-500`)
-- Badges de classificação na tabela com cores mapeadas por categoria
-- Cartão formatado como `••••XXXX` na legenda do donut
+**`src/hooks/useExpenses.ts`**:
+- Adicionar mutation `bulkAddExpenses` para inserir múltiplas parcelas de uma vez
+- Adicionar mutation `advanceInstallment` e `revertInstallment`
+
+### Fluxo do usuário
+
+```text
+Novo Gasto (6 parcelas, data 11/10/2025)
+  → Sistema cria 6 registros:
+    Parcela 1/6 → fatura out/2025
+    Parcela 2/6 → fatura nov/2025
+    ...
+    Parcela 6/6 → fatura mar/2026
+
+Aba "Futuras":
+  [Filtro: Fatura] [Filtro: Despesa]
+  ┌─────────────┬────────┬─────────┬──────────┬──────────┐
+  │ Despesa     │ Valor  │ Parcela │ Fatura   │ Ações    │
+  ├─────────────┼────────┼─────────┼──────────┼──────────┤
+  │ Netflix     │ R$ 50  │  3/6    │ dez/25   │ Adiantar │
+  │ Netflix     │ R$ 50  │  4/6    │ jan/26   │ Adiantar │
+  └─────────────┴────────┴─────────┴──────────┴──────────┘
+
+Após adiantar:
+  │ Netflix     │ R$ 50  │  3/6    │ nov/25 ★ │ Reverter │
+```
 
