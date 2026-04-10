@@ -80,16 +80,21 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       const purchaseDate = parseISO(formData.data!);
 
       for (let i = 0; i < totalParcelas; i++) {
-        const installmentDate = addMonths(purchaseDate, i);
+        // Ajusta a data real da despesa: Parcela 1 (hoje), Parcela 2 (mês que vem), etc.
+        const dataCompra = parseISO(data.data);
+        const dataDaParcela = format(addMonths(dataCompra, i), "yyyy-MM-dd");
+
         const faturaDate = new Date(year, month - 1 + i, 1);
+        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
 
         installments.push({
-          ...formData,
-          valor: Number(formData.valor),
+          ...data,
+          valor: Number(data.valor),
+          data: dataDaParcela, // CADA PARCELA TERÁ SEU DIA PRÓPRIO
           parcela: i + 1,
           total_parcela: totalParcelas,
-          data: format(installmentDate, "yyyy-MM-dd"),
-          fatura: format(faturaDate, "yyyy-MM-dd"),
+          fatura: faturaStr,
+          user_id: session.user.id,
         });
       }
       bulkAddExpenses.mutate(installments, { onSuccess: () => onOpenChange(false) });
