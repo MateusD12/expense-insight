@@ -290,15 +290,15 @@ export default function Index() {
     const todayStr = format(new Date(), "yyyy-MM-dd");
 
     let result = normalizedExpenses.filter((e) => {
-      // REGRA DE OURO: No Dashboard/Tabela só entra o que já aconteceu
-      // Ou seja: Data menor ou igual a hoje OU se você forçou o adiantamento
+      // REGRA: Só entra no Dashboard/Tabela se o dia já chegou ou foi adiantado
       const jaAconteceu = e.data <= todayStr || !!e.fatura_original;
-
       if (!jaAconteceu) return false;
 
-      // ... O RESTANTE DOS SEUS FILTROS (MANTENHA EXATAMENTE COMO ESTÁ) ...
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
+        e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
+      // ... mantenha o restante dos filtros (matchBanco, matchCat, etc) igual ...
+      e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;

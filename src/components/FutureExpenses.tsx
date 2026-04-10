@@ -24,7 +24,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
     return expenses.filter((e) => {
       if (!e.fatura) return false;
 
-      // ATENÇÃO: Verifique se o nome aqui e lá embaixo é o mesmo
+      // CORREÇÃO DO NOME AQUI:
       const isParcelamentoReal = (e.total_parcela || 0) > 1;
       const faturaMes = e.fatura.substring(0, 7);
 
@@ -32,7 +32,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
       const isMesmoMesMasDiaFuturo = faturaMes === currentFaturaMonth && e.data > todayStr;
       const wasAdvanced = !!e.fatura_original;
 
-      // AQUI: use o nome correto "isParcelamentoReal"
+      // USE O NOME CORRETO AQUI TAMBÉM:
       return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
     });
   }, [expenses]);
