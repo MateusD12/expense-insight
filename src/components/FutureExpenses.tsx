@@ -9,8 +9,7 @@ import { toast } from "sonner";
 import { Undo2, FastForward } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const formatCurrency = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const formatFatura = (d: string | null) => {
   if (!d) return "-";
@@ -36,11 +35,15 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
   const futureExpenses = useMemo(() => {
     return expenses.filter((e) => {
       if (!e.fatura) return false;
+
       const faturaMonth = e.fatura.substring(0, 7);
-      // Show future OR those that were advanced (have fatura_original)
       const isFuture = faturaMonth > currentMonth;
       const wasAdvanced = !!e.fatura_original;
-      return isFuture || wasAdvanced;
+
+      // AJUSTE AQUI: Só aceita despesas com total de parcelas maior que 1
+      const isParcelamentoReal = (e.total_parcela || 0) > 1;
+
+      return (isFuture || wasAdvanced) && isParcelamentoReal;
     });
   }, [expenses, currentMonth]);
 
@@ -139,7 +142,10 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
                 filtered.map((e) => {
                   const isAdvanced = !!e.fatura_original;
                   return (
-                    <TableRow key={e.id} className={cn("hover:bg-blue-50/50 transition-colors", isAdvanced && "bg-amber-50/50")}>
+                    <TableRow
+                      key={e.id}
+                      className={cn("hover:bg-blue-50/50 transition-colors", isAdvanced && "bg-amber-50/50")}
+                    >
                       <TableCell className="font-bold text-sm">{e.despesa || "-"}</TableCell>
                       <TableCell className="font-bold text-xs">{e.banco}</TableCell>
                       <TableCell className="text-right font-black text-blue-600">
@@ -149,9 +155,7 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
                         {e.parcela}/{e.total_parcela}
                       </TableCell>
                       <TableCell className="font-bold text-xs">
-                        <span className={cn(isAdvanced && "text-amber-600")}>
-                          {formatFatura(e.fatura)}
-                        </span>
+                        <span className={cn(isAdvanced && "text-amber-600")}>{formatFatura(e.fatura)}</span>
                         {isAdvanced && (
                           <span className="text-[9px] text-slate-400 ml-1">
                             (era {formatFatura(e.fatura_original)})
@@ -190,8 +194,8 @@ export function FutureExpenses({ expenses }: FutureExpensesProps) {
 
       {filtered.length > 0 && (
         <div className="text-center text-xs text-slate-400 font-bold">
-          {filtered.length} parcela{filtered.length !== 1 ? "s" : ""} futura{filtered.length !== 1 ? "s" : ""} •{" "}
-          Total: {formatCurrency(filtered.reduce((acc, e) => acc + Number(e.valor), 0))}
+          {filtered.length} parcela{filtered.length !== 1 ? "s" : ""} futura{filtered.length !== 1 ? "s" : ""} • Total:{" "}
+          {formatCurrency(filtered.reduce((acc, e) => acc + Number(e.valor), 0))}
         </div>
       )}
     </div>
