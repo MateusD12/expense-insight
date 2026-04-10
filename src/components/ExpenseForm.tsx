@@ -66,7 +66,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       setInputMensal(vlr.toString());
       setInputTotal((vlr * totParc).toFixed(2));
     } else {
-      // LÓGICA PARA FATURA NO PRÓXIMO MÊS
+      // --- LÓGICA PARA SUGERIR SEMPRE O PRÓXIMO MÊS ---
       const hoje = new Date();
       const proximoMes = addMonths(hoje, 1);
       const faturaPadrao = format(proximoMes, "yyyy-MM");
@@ -81,7 +81,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
         classificacao: "",
         parcela: 1,
         total_parcela: 1,
-        fatura: faturaPadrao, // AQUI: Já sugere a fatura do mês que vem
+        fatura: faturaPadrao, // AQUI: Agora ele já abre sugerindo o mês que vem
       });
       setInputMensal("");
       setInputTotal("");
