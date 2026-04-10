@@ -93,7 +93,14 @@ export default function Index() {
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup" | "recovery">("login");
 
-  const { data: allExpenses = [], isLoading, addExpense, bulkAddExpenses, updateExpense, deleteExpense } = useExpenses();
+  const {
+    data: allExpenses = [],
+    isLoading,
+    addExpense,
+    bulkAddExpenses,
+    updateExpense,
+    deleteExpense,
+  } = useExpenses();
 
   const [filters, setFilters] = useState({
     search: "",
@@ -280,17 +287,24 @@ export default function Index() {
   };
 
   const filteredAndSorted = useMemo(() => {
+    const todayStr = format(new Date(), "yyyy-MM-dd");
+
     let result = normalizedExpenses.filter((e) => {
+      // REGRA DE OURO: No Dashboard/Tabela só entra o que já aconteceu
+      // Ou seja: Data menor ou igual a hoje OU se você forçou o adiantamento
+      const jaAconteceu = e.data <= todayStr || !!e.fatura_original;
+
+      if (!jaAconteceu) return false;
+
+      // ... O RESTANTE DOS SEUS FILTROS (MANTENHA EXATAMENTE COMO ESTÁ) ...
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-      const matchJust = filters.justificativa === "all" || e.justificativa === filters.justificativa;
       const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
-      const matchDataInicio = !filters.dataInicio || e.data >= filters.dataInicio;
-      const matchDataFim = !filters.dataFim || e.data <= filters.dataFim;
-      return matchSearch && matchBanco && matchCat && matchJust && matchFatura && matchDataInicio && matchDataFim;
+
+      return matchSearch && matchBanco && matchCat && matchFatura;
     });
 
     result.sort((a: any, b: any) => {
