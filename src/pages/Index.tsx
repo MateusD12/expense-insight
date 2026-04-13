@@ -632,6 +632,14 @@ export default function Index() {
           )}
         </div>
 
+        {filters.fatura !== "all" && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+              📋 Fatura de {formatFatura(filters.fatura)}
+            </span>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
