@@ -5,36 +5,70 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { toast } from "sonner";
-import { Undo2, FastForward } from "lucide-react";
+import { Undo2, FastForward, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
+interface VirtualExpense extends Expense {
+  isVirtual?: boolean;
+  sourceExpenseId?: string;
+}
+
 export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
-  const { advanceInstallment, revertInstallment } = useExpenses();
+  const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
 
-  const futureExpenses = useMemo(() => {
-    const hoje = new Date();
-    const todayStr = format(hoje, "yyyy-MM-dd");
-    const faturaAtual = format(addMonths(hoje, 1), "yyyy-MM");
+  const futureExpenses = useMemo<VirtualExpense[]>(() => {
+    const result: VirtualExpense[] = [];
+    // Set of existing real expense keys to avoid duplicates: "sourceId_parcela"
+    const existingKeys = new Set(
+      expenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`)
+    );
 
-    return expenses.filter((e) => {
-      if (!e.fatura) return false;
-      const isParcelamentoReal = (e.total_parcela || 0) > 1;
-      const faturaMes = e.fatura.substring(0, 7);
+    for (const e of expenses) {
+      const totalParcelas = e.total_parcela || 0;
+      if (totalParcelas <= 1) continue;
+      if (!e.fatura) continue;
 
-      // REGRA DAS FUTURAS:
-      // 1. Faturas de Junho/26 em diante (sempre futuro)
-      const isFaturaPosterior = faturaMes > faturaAtual;
-      // 2. Fatura de Maio/26 mas o dia ainda não chegou
-      const isMesmoMesMasDiaFuturo = faturaMes === faturaAtual && e.data > todayStr;
-      const wasAdvanced = !!e.fatura_original;
+      const currentParcela = e.parcela || 0;
+      const remainingCount = totalParcelas - currentParcela;
+      if (remainingCount <= 0) continue;
 
-      return isParcelamentoReal && (isFaturaPosterior || isMesmoMesMasDiaFuturo || wasAdvanced);
-    });
+      // Generate virtual entries for remaining installments
+      const faturaDate = new Date(e.fatura.substring(0, 7) + "-01T12:00:00");
+
+      for (let i = 1; i <= remainingCount; i++) {
+        const futureParcela = currentParcela + i;
+        const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
+        
+        // Skip if a real record already exists for this installment
+        if (existingKeys.has(key)) continue;
+
+        const futuraFatura = addMonths(faturaDate, i);
+        const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
+
+        result.push({
+          ...e,
+          id: `${e.id}_p${futureParcela}`,
+          parcela: futureParcela,
+          fatura: futuraFaturaStr,
+          fatura_original: null,
+          isVirtual: true,
+          sourceExpenseId: e.id,
+        });
+      }
+    }
+
+    // Also include real future records that were advanced (have fatura_original)
+    for (const e of expenses) {
+      if (e.fatura_original) {
+        result.push({ ...e, isVirtual: false });
+      }
+    }
+
+    return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
   }, [expenses]);
 
   const uniqueFaturas = useMemo(
@@ -53,6 +87,29 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
         (despesaFilter === "all" || e.despesa === despesaFilter),
     );
   }, [futureExpenses, faturaFilter, despesaFilter]);
+
+  const handleAdvanceVirtual = (e: VirtualExpense) => {
+    // Find the source expense to copy all fields
+    const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
+    if (!source) return;
+
+    const now = new Date();
+    const currentMonthFatura = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+
+    addExpense.mutate({
+      banco: source.banco,
+      cartao: source.cartao,
+      valor: source.valor,
+      data: source.data,
+      parcela: e.parcela,
+      total_parcela: e.total_parcela,
+      despesa: source.despesa,
+      justificativa: source.justificativa,
+      classificacao: source.classificacao,
+      fatura: currentMonthFatura,
+      fatura_original: e.fatura,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -106,9 +163,18 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
               filtered.map((e) => (
                 <TableRow
                   key={e.id}
-                  className={cn("hover:bg-blue-50/50 transition-colors", !!e.fatura_original && "bg-amber-50/50")}
+                  className={cn(
+                    "hover:bg-blue-50/50 transition-colors",
+                    !!e.fatura_original && "bg-amber-50/50",
+                    e.isVirtual && "bg-slate-50/30",
+                  )}
                 >
-                  <TableCell className="font-bold text-sm">{e.despesa}</TableCell>
+                  <TableCell className="font-bold text-sm">
+                    <div className="flex items-center gap-1.5">
+                      {e.isVirtual && <Sparkles size={12} className="text-purple-400" />}
+                      {e.despesa}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-right font-black text-blue-600">{formatCurrency(e.valor)}</TableCell>
                   <TableCell className="text-center text-xs text-slate-400 font-bold">
                     {e.parcela}/{e.total_parcela}
@@ -125,6 +191,15 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
                         onClick={() => revertInstallment.mutate({ id: e.id, faturaOriginal: e.fatura_original! })}
                       >
                         <Undo2 size={14} className="mr-1" /> Reverter
+                      </Button>
+                    ) : e.isVirtual ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-purple-600 font-bold text-xs h-8"
+                        onClick={() => handleAdvanceVirtual(e)}
+                      >
+                        <FastForward size={14} className="mr-1" /> Adiantar
                       </Button>
                     ) : (
                       <Button
