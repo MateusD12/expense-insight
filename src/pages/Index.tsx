@@ -102,13 +102,18 @@ export default function Index() {
     deleteExpense,
   } = useExpenses();
 
+  const faturaFoco = useMemo(() => {
+    const now = new Date();
+    return format(addMonths(now, 1), "yyyy-MM");
+  }, []);
+
   const [filters, setFilters] = useState({
     search: "",
     banco: "all",
     cartao: "all",
     classificacao: "all",
     justificativa: "all",
-    fatura: "all",
+    fatura: faturaFoco,
     dataInicio: "",
     dataFim: "",
   });
@@ -421,7 +426,7 @@ export default function Index() {
     filters.banco !== "all" ||
     filters.classificacao !== "all" ||
     filters.justificativa !== "all" ||
-    filters.fatura !== "all" ||
+    filters.fatura !== faturaFoco ||
     filters.dataInicio !== "" ||
     filters.dataFim !== "";
 
@@ -615,7 +620,7 @@ export default function Index() {
                     cartao: "all",
                     classificacao: "all",
                     justificativa: "all",
-                    fatura: "all",
+                    fatura: faturaFoco,
                     dataInicio: "",
                     dataFim: "",
                   })
