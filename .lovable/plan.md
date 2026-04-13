@@ -1,63 +1,59 @@
 
 
-## Plano: Sistema de Parcelas Futuras com Geração Automática
+## Diagnóstico
 
-### Resumo
+O problema é que os dados foram importados via CSV, e cada despesa parcelada tem **apenas 1 registro** no banco (ex: "Mercadolivre parcela 5/6, fatura maio/26"). O sistema de "Futuras" espera encontrar registros separados para cada parcela futura, mas eles não existem.
 
-Quando o usuário cadastrar uma despesa parcelada, o sistema vai gerar automaticamente os registros das parcelas futuras (cada uma com sua fatura correspondente). Uma nova aba "Despesas Futuras" permitirá visualizar, filtrar e gerenciar essas parcelas. O usuário poderá "adiantar" parcelas para a fatura atual ou reverter o adiantamento.
+Por exemplo, "Ec *mercadolivre" está como parcela 1/6 na fatura maio/26 — mas as parcelas 2/6 a 6/6 (jun, jul, ago, set, out) simplesmente não existem no banco.
 
-### Como vai funcionar
+## Solução: Gerar parcelas futuras virtualmente
 
-1. **Ao salvar uma despesa parcelada** (ex: 6 parcelas, data 11/10/2025), o sistema cria automaticamente 6 registros no banco — parcela 1/6 na fatura out/2025, parcela 2/6 na fatura nov/2025, etc.
+Em vez de depender de registros existentes, o componente `FutureExpenses` vai **calcular** as parcelas restantes a partir dos dados que já existem. Para cada despesa onde `parcela < total_parcela`, o sistema gera entradas virtuais para os meses seguintes.
 
-2. **Nova aba "Futuras"** ao lado de "Dashboard" e "Tabela":
-   - Mostra apenas parcelas com fatura posterior ao mês atual
-   - Filtros: por fatura futura específica, por despesa (para ver até quando vai)
-   - Cada linha mostra: despesa, valor, parcela X/Y, fatura destino
+### Lógica
 
-3. **Adiantar parcela**: checkbox ou botão em cada linha que move a parcela para a fatura do mês atual. O campo `fatura` é atualizado, e um novo campo `fatura_original` guarda a fatura programada.
+Para uma despesa com parcela 5/6 e fatura maio/26:
+- Parcela 6/6 → fatura jun/26 (virtual, calculada)
 
-4. **Reverter adiantamento**: se a parcela foi adiantada, aparece um botão para devolver à fatura original (restaura `fatura` com o valor de `fatura_original`).
+Para "Ec *mercadolivre" com parcela 1/6 e fatura maio/26:
+- Parcela 2/6 → jun/26
+- Parcela 3/6 → jul/26
+- Parcela 4/6 → ago/26
+- Parcela 5/6 → set/26
+- Parcela 6/6 → out/26
 
-### Mudanças técnicas
+### Mudanças
 
-**Banco de dados (migration)**:
-- Adicionar coluna `fatura_original` (date, nullable) na tabela `expenses` — guarda a fatura programada original quando uma parcela é adiantada
+**`src/components/FutureExpenses.tsx`**:
+- Reescrever o `useMemo` de `futureExpenses` para:
+  1. Filtrar despesas com `total_parcela > 1` e `parcela < total_parcela`
+  2. Para cada uma, gerar N entradas virtuais (uma por mês restante) com parcela incrementada e fatura avançada
+  3. Cada entrada virtual terá um `id` composto (ex: `${original.id}_p${i}`) para ser usada como key no React
+  4. Manter suporte a registros reais com `fatura_original` (parcelas que já foram bulk-geradas pelo formulário novo)
+- Desabilitar o botão "Adiantar" para parcelas virtuais (não existe registro no banco para fazer update) — ou criar o registro real no momento do adiantamento
+- Adicionar indicação visual de "parcela projetada" vs "parcela real"
 
-**`ExpenseForm.tsx`**:
-- Ao salvar despesa com `total_parcela > 1`, criar N registros automaticamente, cada um com parcela incrementada e fatura avançada mês a mês
+**Botão "Adiantar" para parcelas virtuais**:
+- Ao clicar em "Adiantar" numa parcela virtual, o sistema cria um novo registro real no banco com a fatura do mês atual e `fatura_original` com a fatura projetada
+- Isso permite que o adiantamento funcione tanto para dados importados quanto para dados gerados pelo formulário
 
-**`src/pages/Index.tsx`**:
-- Adicionar nova aba "Futuras" no TabsList
-- Componente da aba filtra despesas com fatura > mês atual
-- Filtros por fatura futura e por nome de despesa
-- Botão "Adiantar" que faz update da fatura para o mês atual e salva fatura_original
-- Botão "Reverter" (visível quando fatura_original existe) que restaura a fatura original
+**Regra de exclusão da tabela principal**: A tabela principal (`filteredAndSorted`) já filtra corretamente — mostra apenas parcelas com fatura ≤ atual e data ≤ hoje. As parcelas virtuais futuras nunca aparecerão lá.
 
-**`src/hooks/useExpenses.ts`**:
-- Adicionar mutation `bulkAddExpenses` para inserir múltiplas parcelas de uma vez
-- Adicionar mutation `advanceInstallment` e `revertInstallment`
-
-### Fluxo do usuário
+### Fluxo visual esperado
 
 ```text
-Novo Gasto (6 parcelas, data 11/10/2025)
-  → Sistema cria 6 registros:
-    Parcela 1/6 → fatura out/2025
-    Parcela 2/6 → fatura nov/2025
-    ...
-    Parcela 6/6 → fatura mar/2026
+Dados no banco:
+  Ec *mercadolivre | 1/6 | fatura mai/26
 
-Aba "Futuras":
-  [Filtro: Fatura] [Filtro: Despesa]
-  ┌─────────────┬────────┬─────────┬──────────┬──────────┐
-  │ Despesa     │ Valor  │ Parcela │ Fatura   │ Ações    │
-  ├─────────────┼────────┼─────────┼──────────┼──────────┤
-  │ Netflix     │ R$ 50  │  3/6    │ dez/25   │ Adiantar │
-  │ Netflix     │ R$ 50  │  4/6    │ jan/26   │ Adiantar │
-  └─────────────┴────────┴─────────┴──────────┴──────────┘
-
-Após adiantar:
-  │ Netflix     │ R$ 50  │  3/6    │ nov/25 ★ │ Reverter │
+Aba "Futuras" mostra (calculado):
+  ┌──────────────────────┬────────┬─────────┬──────────┬──────────┐
+  │ Despesa              │ Valor  │ Parcela │ Fatura   │ Ações    │
+  ├──────────────────────┼────────┼─────────┼──────────┼──────────┤
+  │ Ec *mercadolivre     │ R$ XX  │  2/6    │ jun/26   │ Adiantar │
+  │ Ec *mercadolivre     │ R$ XX  │  3/6    │ jul/26   │ Adiantar │
+  │ Ec *mercadolivre     │ R$ XX  │  4/6    │ ago/26   │ Adiantar │
+  │ Ec *mercadolivre     │ R$ XX  │  5/6    │ set/26   │ Adiantar │
+  │ Ec *mercadolivre     │ R$ XX  │  6/6    │ out/26   │ Adiantar │
+  └──────────────────────┴────────┴─────────┴──────────┴──────────┘
 ```
 
