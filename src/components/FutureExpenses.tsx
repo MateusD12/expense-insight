@@ -188,10 +188,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
                         variant="ghost"
                         size="sm"
                         className="text-amber-600 font-bold text-xs h-8"
-                        onClick={() => {
-                          const { advanceInstallment, revertInstallment } = useExpenses();
-                          // This won't work here - need to use the hook at component level
-                        }}
+                        onClick={() => revertInstallment.mutate({ id: e.id, faturaOriginal: e.fatura_original! })}
                       >
                         <Undo2 size={14} className="mr-1" /> Reverter
                       </Button>
