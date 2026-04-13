@@ -102,13 +102,18 @@ export default function Index() {
     deleteExpense,
   } = useExpenses();
 
+  const faturaFoco = useMemo(() => {
+    const now = new Date();
+    return format(addMonths(now, 1), "yyyy-MM");
+  }, []);
+
   const [filters, setFilters] = useState({
     search: "",
     banco: "all",
     cartao: "all",
     classificacao: "all",
     justificativa: "all",
-    fatura: "all",
+    fatura: faturaFoco,
     dataInicio: "",
     dataFim: "",
   });
@@ -421,7 +426,7 @@ export default function Index() {
     filters.banco !== "all" ||
     filters.classificacao !== "all" ||
     filters.justificativa !== "all" ||
-    filters.fatura !== "all" ||
+    filters.fatura !== faturaFoco ||
     filters.dataInicio !== "" ||
     filters.dataFim !== "";
 
@@ -615,7 +620,7 @@ export default function Index() {
                     cartao: "all",
                     classificacao: "all",
                     justificativa: "all",
-                    fatura: "all",
+                    fatura: faturaFoco,
                     dataInicio: "",
                     dataFim: "",
                   })
@@ -626,6 +631,14 @@ export default function Index() {
             </div>
           )}
         </div>
+
+        {filters.fatura !== "all" && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-500">
+              📋 Fatura de {formatFatura(filters.fatura)}
+            </span>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
