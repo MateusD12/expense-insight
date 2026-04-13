@@ -16,7 +16,7 @@ interface VirtualExpense extends Expense {
 }
 
 export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
-  const { advanceInstallment, addExpense } = useExpenses();
+  const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
 
