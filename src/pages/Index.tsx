@@ -348,22 +348,25 @@ export default function Index() {
     const todayStr = format(hoje, "yyyy-MM-dd");
     const faturaAtual = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
 
-    let result = normalizedExpenses.filter((e) => {
+    // If user selected a specific future fatura, include virtual expenses and skip isPresente
+    const isFutureFilter = filters.fatura !== "all" && filters.fatura > faturaAtual;
+
+    const pool = isFutureFilter
+      ? [...normalizedExpenses, ...virtualExpenses]
+      : normalizedExpenses;
+
+    let result = pool.filter((e) => {
       const faturaMes = e.fatura?.substring(0, 7);
 
-      // REGRA DO DASHBOARD:
-      // 1. Mostra se for compra à vista (1/1)
-      const isAVista = (e.total_parcela || 0) <= 1;
-      // 2. Mostra se a fatura já passou ou é a atual E o dia já chegou
-      const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
-      // 3. Mostra se foi adiantado manualmente
-      const isAdvanced = !!e.fatura_original;
+      if (!isFutureFilter) {
+        // REGRA DO DASHBOARD: só mostra presentes
+        const isAVista = (e.total_parcela || 0) <= 1;
+        const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
+        const isAdvanced = !!e.fatura_original;
+        const isPresente = isAVista || jaVenceuODia || isAdvanced;
+        if (!isPresente) return false;
+      }
 
-      const isPresente = isAVista || jaVenceuODia || isAdvanced;
-
-      if (!isPresente) return false;
-
-      // --- MANTENHA OS FILTROS DE BUSCA ABAIXO ---
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
