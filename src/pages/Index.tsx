@@ -276,14 +276,66 @@ export default function Index() {
     }));
   }, [allExpenses]);
 
-  const unique = (key: keyof Expense) =>
-    [
+  // Generate virtual future installments from parceladas
+  const virtualExpenses = useMemo(() => {
+    const result: (Expense & { isVirtual?: boolean })[] = [];
+    const existingKeys = new Set(
+      normalizedExpenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`)
+    );
+
+    for (const e of normalizedExpenses) {
+      const totalParcelas = e.total_parcela || 0;
+      if (totalParcelas <= 1) continue;
+      if (!e.fatura) continue;
+
+      const currentParcela = e.parcela || 0;
+      const remainingCount = totalParcelas - currentParcela;
+      if (remainingCount <= 0) continue;
+
+      const faturaDate = new Date(e.fatura.substring(0, 7) + "-01T12:00:00");
+
+      for (let i = 1; i <= remainingCount; i++) {
+        const futureParcela = currentParcela + i;
+        const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
+        if (existingKeys.has(key)) continue;
+
+        const futuraFatura = addMonths(faturaDate, i);
+        const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
+
+        result.push({
+          ...e,
+          id: `${e.id}_v${futureParcela}`,
+          parcela: futureParcela,
+          fatura: futuraFaturaStr,
+          fatura_original: null,
+          isVirtual: true,
+        } as any);
+      }
+    }
+    return result;
+  }, [normalizedExpenses]);
+
+  // Combine real faturas + virtual future faturas for dropdown
+  const allFaturaOptions = useMemo(() => {
+    const realFaturas = normalizedExpenses
+      .map((e) => e.fatura?.slice(0, 7))
+      .filter(Boolean) as string[];
+    const virtualFaturas = virtualExpenses
+      .map((e) => e.fatura?.slice(0, 7))
+      .filter(Boolean) as string[];
+    return [...new Set([...realFaturas, ...virtualFaturas])].sort();
+  }, [normalizedExpenses, virtualExpenses]);
+
+  const unique = (key: keyof Expense) => {
+    if (key === "fatura") return allFaturaOptions;
+    return [
       ...new Set(
         normalizedExpenses
-          .map((e) => (key === "fatura" && e[key] ? (e[key] as string).slice(0, 7) : e[key]))
+          .map((e) => e[key])
           .filter(Boolean) as string[],
       ),
     ].sort();
+  };
 
   const requestSort = (key: keyof Expense) => {
     let direction: "asc" | "desc" = "asc";
@@ -296,22 +348,25 @@ export default function Index() {
     const todayStr = format(hoje, "yyyy-MM-dd");
     const faturaAtual = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
 
-    let result = normalizedExpenses.filter((e) => {
+    // If user selected a specific future fatura, include virtual expenses and skip isPresente
+    const isFutureFilter = filters.fatura !== "all" && filters.fatura > faturaAtual;
+
+    const pool = isFutureFilter
+      ? [...normalizedExpenses, ...virtualExpenses]
+      : normalizedExpenses;
+
+    let result = pool.filter((e) => {
       const faturaMes = e.fatura?.substring(0, 7);
 
-      // REGRA DO DASHBOARD:
-      // 1. Mostra se for compra à vista (1/1)
-      const isAVista = (e.total_parcela || 0) <= 1;
-      // 2. Mostra se a fatura já passou ou é a atual E o dia já chegou
-      const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
-      // 3. Mostra se foi adiantado manualmente
-      const isAdvanced = !!e.fatura_original;
+      if (!isFutureFilter) {
+        // REGRA DO DASHBOARD: só mostra presentes
+        const isAVista = (e.total_parcela || 0) <= 1;
+        const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
+        const isAdvanced = !!e.fatura_original;
+        const isPresente = isAVista || jaVenceuODia || isAdvanced;
+        if (!isPresente) return false;
+      }
 
-      const isPresente = isAVista || jaVenceuODia || isAdvanced;
-
-      if (!isPresente) return false;
-
-      // --- MANTENHA OS FILTROS DE BUSCA ABAIXO ---
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
@@ -340,7 +395,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, filters, sortConfig]);
+  }, [normalizedExpenses, virtualExpenses, filters, sortConfig]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
