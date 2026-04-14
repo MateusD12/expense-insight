@@ -276,14 +276,66 @@ export default function Index() {
     }));
   }, [allExpenses]);
 
-  const unique = (key: keyof Expense) =>
-    [
+  // Generate virtual future installments from parceladas
+  const virtualExpenses = useMemo(() => {
+    const result: (Expense & { isVirtual?: boolean })[] = [];
+    const existingKeys = new Set(
+      normalizedExpenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`)
+    );
+
+    for (const e of normalizedExpenses) {
+      const totalParcelas = e.total_parcela || 0;
+      if (totalParcelas <= 1) continue;
+      if (!e.fatura) continue;
+
+      const currentParcela = e.parcela || 0;
+      const remainingCount = totalParcelas - currentParcela;
+      if (remainingCount <= 0) continue;
+
+      const faturaDate = new Date(e.fatura.substring(0, 7) + "-01T12:00:00");
+
+      for (let i = 1; i <= remainingCount; i++) {
+        const futureParcela = currentParcela + i;
+        const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
+        if (existingKeys.has(key)) continue;
+
+        const futuraFatura = addMonths(faturaDate, i);
+        const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
+
+        result.push({
+          ...e,
+          id: `${e.id}_v${futureParcela}`,
+          parcela: futureParcela,
+          fatura: futuraFaturaStr,
+          fatura_original: null,
+          isVirtual: true,
+        } as any);
+      }
+    }
+    return result;
+  }, [normalizedExpenses]);
+
+  // Combine real faturas + virtual future faturas for dropdown
+  const allFaturaOptions = useMemo(() => {
+    const realFaturas = normalizedExpenses
+      .map((e) => e.fatura?.slice(0, 7))
+      .filter(Boolean) as string[];
+    const virtualFaturas = virtualExpenses
+      .map((e) => e.fatura?.slice(0, 7))
+      .filter(Boolean) as string[];
+    return [...new Set([...realFaturas, ...virtualFaturas])].sort();
+  }, [normalizedExpenses, virtualExpenses]);
+
+  const unique = (key: keyof Expense) => {
+    if (key === "fatura") return allFaturaOptions;
+    return [
       ...new Set(
         normalizedExpenses
-          .map((e) => (key === "fatura" && e[key] ? (e[key] as string).slice(0, 7) : e[key]))
+          .map((e) => e[key])
           .filter(Boolean) as string[],
       ),
     ].sort();
+  };
 
   const requestSort = (key: keyof Expense) => {
     let direction: "asc" | "desc" = "asc";
