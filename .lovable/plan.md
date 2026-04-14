@@ -1,37 +1,35 @@
 
 
-## Plano: Foco automático na fatura do mês seguinte
+## Plano: Permitir visualizar faturas futuras no dashboard e tabela
 
-### O que muda
+### Problema
 
-Hoje o dashboard mostra **todas** as despesas até a fatura atual. O pedido é: por padrão, mostrar apenas a fatura do **mês seguinte** (ex: em abril → fatura de maio), pois é onde caem os gastos do mês corrente. Os cards (Total, Teto, Transações, Maior Categoria) devem refletir apenas essa fatura.
+A lógica atual em `filteredAndSorted` (linha 310) bloqueia despesas de faturas futuras com a regra `isPresente` — que só mostra faturas até o mês seguinte ao atual. Quando o usuário seleciona uma fatura futura (ex: junho/26), nada aparece porque as parcelas são filtradas antes.
 
-### Lógica
-
-- **Fatura foco**: `format(addMonths(new Date(), 1), "yyyy-MM")` → em abril/26 = `"2026-05"`
-- O filtro de fatura inicia com esse valor ao invés de `"all"`
-- O usuário ainda pode trocar para "Todas Faturas" ou outra fatura específica
-- Adicionar um indicador visual no topo mostrando qual fatura está sendo exibida (ex: "Fatura de Mai/26")
+Além disso, o dropdown de faturas provavelmente não inclui meses futuros como opções, já que só lista faturas existentes nos dados.
 
 ### Mudanças em `src/pages/Index.tsx`
 
-1. **Estado inicial do filtro de fatura**: Mudar `fatura: "all"` para `fatura: faturaFoco` (calculado como mês seguinte)
-2. **Calcular `faturaFoco`** antes do estado, usando `useMemo` ou constante
-3. **Indicador visual**: Adicionar badge/texto acima dos cards mostrando "Fatura de Mai/26" quando o filtro está no padrão
-4. **`filteredAndSorted`**: A lógica de filtragem já respeita `filters.fatura`, então ao mudar o default o resto funciona automaticamente — os cards, gráficos e tabela já derivam de `filteredAndSorted`
+1. **Bypass do filtro `isPresente` quando o usuário escolhe uma fatura específica futura**: Se `filters.fatura !== "all"` e `filters.fatura !== faturaFoco`, pular a verificação `isPresente` e deixar o filtro de fatura decidir sozinho quais registros mostrar.
+
+2. **Gerar opções de faturas futuras no dropdown**: Calcular faturas futuras a partir das despesas parceladas (mesma lógica do `FutureExpenses`) e adicioná-las às opções do filtro de fatura. Assim, o usuário verá "junho/26", "julho/26", etc. como opções selecionáveis.
+
+3. **Incluir parcelas virtuais na tabela e cards**: Quando uma fatura futura for selecionada, gerar as parcelas virtuais (projetadas) inline — mesma lógica de `FutureExpenses` — para que a tabela e os cards (Total, Teto, Transações, Maior Categoria) reflitam o valor comprometido naquela fatura.
 
 ### Detalhes técnicos
 
 ```text
 Antes:
-  filters.fatura = "all" → mostra tudo até fatura atual
-  Cards mostram soma de TODAS as faturas visíveis
+  Dropdown fatura: [Todas | mai/26 | abr/26 | ...]  (só meses com dados reais)
+  Selecionar jun/26: impossível (não existe na lista)
 
 Depois:
-  filters.fatura = "2026-05" (calculado) → mostra só essa fatura
-  Cards mostram soma apenas da fatura de maio
-  Usuário pode trocar para "all" ou outra fatura no dropdown
+  Dropdown fatura: [Todas | mai/26 | jun/26 | jul/26 | ...]  (inclui meses com parcelas projetadas)
+  Selecionar jun/26: mostra parcelas virtuais que cairão nessa fatura
+  Cards refletem os valores projetados dessa fatura
 ```
 
-Nenhuma mudança no banco de dados é necessária.
+### Arquivos alterados
+
+- `src/pages/Index.tsx` — lógica de filtragem, geração de parcelas virtuais, opções do dropdown de faturas
 
