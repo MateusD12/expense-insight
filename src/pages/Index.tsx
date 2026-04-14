@@ -395,7 +395,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, filters, sortConfig]);
+  }, [normalizedExpenses, virtualExpenses, filters, sortConfig]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
