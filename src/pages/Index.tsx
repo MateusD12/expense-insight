@@ -748,7 +748,7 @@ export default function Index() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               Total Gastos
@@ -781,6 +781,12 @@ export default function Index() {
               Maior Categoria
             </p>
             <h2 className="text-base sm:text-xl font-black truncate text-slate-50">{chartData.cats[0]?.name || "-"}</h2>
+          </div>
+          <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              Próx. Fatura ({proximaFatura.label})
+            </p>
+            <h2 className="text-xl sm:text-3xl font-black">{formatCurrency(proximaFatura.total)}</h2>
           </div>
         </div>
 
