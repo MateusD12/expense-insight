@@ -853,14 +853,37 @@ export default function Index() {
               </ResponsiveContainer>
             </div>
 
-            {/* 2. Evolução Mensal */}
+            {/* 2. Evolução Mensal — independente dos filtros */}
             <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
-                Evolução Mensal
-              </h3>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
+                  Evolução Mensal
+                </h3>
+                <div className="flex gap-1">
+                  {[
+                    { value: "3m", label: "3M" },
+                    { value: "6m", label: "6M" },
+                    { value: "1y", label: "1A" },
+                    { value: "all", label: "Tudo" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setChartPeriod(opt.value)}
+                      className={cn(
+                        "px-3 py-1 text-[10px] font-black rounded-lg transition-colors",
+                        chartPeriod === opt.value
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <AreaChart data={chartTemporalData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis
                     dataKey="name"
