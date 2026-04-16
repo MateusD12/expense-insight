@@ -123,6 +123,7 @@ export default function Index() {
     direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [chartPeriod, setChartPeriod] = useState("6m");
 
   const [formOpen, setFormOpen] = useState(false);
   const [budgetDialogOpen, setBudgetDialogOpen] = useState(false);
@@ -454,6 +455,58 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
+  // Próxima fatura: calculate next month's total relative to selected fatura
+  const proximaFatura = useMemo(() => {
+    const baseFatura = filters.fatura !== "all" ? filters.fatura : faturaFoco;
+    const baseDate = new Date(baseFatura + "-01T12:00:00");
+    const nextDate = addMonths(baseDate, 1);
+    const nextKey = format(nextDate, "yyyy-MM");
+    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const total = allPool
+      .filter((e) => e.fatura?.slice(0, 7) === nextKey)
+      .reduce((acc, e) => acc + Number(e.valor), 0);
+    return {
+      label: format(nextDate, "MMM/yy", { locale: ptBR }),
+      total,
+    };
+  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses]);
+
+  // Chart temporal data: independent of dashboard filters
+  const chartTemporalData = useMemo(() => {
+    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const temporal: Record<string, number> = {};
+    allPool.forEach((e) => {
+      if (e.fatura) {
+        const f = e.fatura.slice(0, 7);
+        temporal[f] = (temporal[f] || 0) + Number(e.valor);
+      }
+    });
+
+    let entries = Object.entries(temporal).sort();
+
+    // Apply chart period filter
+    if (chartPeriod !== "all") {
+      const now = new Date();
+      const currentMonth = format(now, "yyyy-MM");
+      let monthsBack = 6;
+      let monthsForward = 12;
+      if (chartPeriod === "3m") { monthsBack = 3; monthsForward = 6; }
+      else if (chartPeriod === "6m") { monthsBack = 6; monthsForward = 12; }
+      else if (chartPeriod === "1y") { monthsBack = 12; monthsForward = 12; }
+
+      const startDate = addMonths(now, -monthsBack);
+      const endDate = addMonths(now, monthsForward);
+      const startKey = format(startDate, "yyyy-MM");
+      const endKey = format(endDate, "yyyy-MM");
+      entries = entries.filter(([f]) => f >= startKey && f <= endKey);
+    }
+
+    return entries.map(([f, valor]) => ({
+      name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
+      valor,
+    }));
+  }, [normalizedExpenses, virtualExpenses, chartPeriod]);
+
   const handleBankClick = (data: any) => {
     const bankName = data.name.split(" ••")[0];
     setFilters((prev) => ({ ...prev, banco: prev.banco === bankName ? "all" : bankName }));
@@ -695,7 +748,7 @@ export default function Index() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               Total Gastos
@@ -728,6 +781,12 @@ export default function Index() {
               Maior Categoria
             </p>
             <h2 className="text-base sm:text-xl font-black truncate text-slate-50">{chartData.cats[0]?.name || "-"}</h2>
+          </div>
+          <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              Próx. Fatura ({proximaFatura.label})
+            </p>
+            <h2 className="text-xl sm:text-3xl font-black">{formatCurrency(proximaFatura.total)}</h2>
           </div>
         </div>
 
@@ -794,14 +853,37 @@ export default function Index() {
               </ResponsiveContainer>
             </div>
 
-            {/* 2. Evolução Mensal */}
+            {/* 2. Evolução Mensal — independente dos filtros */}
             <div className="bg-white p-3 sm:p-6 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
-              <h3 className="text-[10px] sm:text-xs font-black text-slate-600 mb-4 sm:mb-6 mt-1 px-2 uppercase tracking-widest">
-                Evolução Mensal
-              </h3>
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-4 sm:mb-6 mt-1 px-2">
+                <h3 className="text-[10px] sm:text-xs font-black text-slate-600 uppercase tracking-widest">
+                  Evolução Mensal
+                </h3>
+                <div className="flex gap-1">
+                  {[
+                    { value: "3m", label: "3M" },
+                    { value: "6m", label: "6M" },
+                    { value: "1y", label: "1A" },
+                    { value: "all", label: "Tudo" },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setChartPeriod(opt.value)}
+                      className={cn(
+                        "px-3 py-1 text-[10px] font-black rounded-lg transition-colors",
+                        chartPeriod === opt.value
+                          ? "bg-emerald-500 text-white"
+                          : "bg-slate-100 text-slate-500 hover:bg-slate-200",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <ResponsiveContainer width="100%" height={240}>
-                <AreaChart data={chartData.temporal} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <AreaChart data={chartTemporalData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                   <XAxis
                     dataKey="name"
