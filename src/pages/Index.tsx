@@ -455,6 +455,58 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
+  // Próxima fatura: calculate next month's total relative to selected fatura
+  const proximaFatura = useMemo(() => {
+    const baseFatura = filters.fatura !== "all" ? filters.fatura : faturaFoco;
+    const baseDate = new Date(baseFatura + "-01T12:00:00");
+    const nextDate = addMonths(baseDate, 1);
+    const nextKey = format(nextDate, "yyyy-MM");
+    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const total = allPool
+      .filter((e) => e.fatura?.slice(0, 7) === nextKey)
+      .reduce((acc, e) => acc + Number(e.valor), 0);
+    return {
+      label: format(nextDate, "MMM/yy", { locale: ptBR }),
+      total,
+    };
+  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses]);
+
+  // Chart temporal data: independent of dashboard filters
+  const chartTemporalData = useMemo(() => {
+    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const temporal: Record<string, number> = {};
+    allPool.forEach((e) => {
+      if (e.fatura) {
+        const f = e.fatura.slice(0, 7);
+        temporal[f] = (temporal[f] || 0) + Number(e.valor);
+      }
+    });
+
+    let entries = Object.entries(temporal).sort();
+
+    // Apply chart period filter
+    if (chartPeriod !== "all") {
+      const now = new Date();
+      const currentMonth = format(now, "yyyy-MM");
+      let monthsBack = 6;
+      let monthsForward = 12;
+      if (chartPeriod === "3m") { monthsBack = 3; monthsForward = 6; }
+      else if (chartPeriod === "6m") { monthsBack = 6; monthsForward = 12; }
+      else if (chartPeriod === "1y") { monthsBack = 12; monthsForward = 12; }
+
+      const startDate = addMonths(now, -monthsBack);
+      const endDate = addMonths(now, monthsForward);
+      const startKey = format(startDate, "yyyy-MM");
+      const endKey = format(endDate, "yyyy-MM");
+      entries = entries.filter(([f]) => f >= startKey && f <= endKey);
+    }
+
+    return entries.map(([f, valor]) => ({
+      name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
+      valor,
+    }));
+  }, [normalizedExpenses, virtualExpenses, chartPeriod]);
+
   const handleBankClick = (data: any) => {
     const bankName = data.name.split(" ••")[0];
     setFilters((prev) => ({ ...prev, banco: prev.banco === bankName ? "all" : bankName }));
