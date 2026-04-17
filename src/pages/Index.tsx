@@ -1304,7 +1304,7 @@ export default function Index() {
         onOpenChange={setShowInvoiceDialog}
         invoice={parsedInvoice}
         allExpenses={normalizedExpenses}
-        banco="Itaú"
+        banco={parsedBanco}
         userId={session?.user?.id || ""}
         onImport={async (payloads) => {
           await bulkAddExpenses.mutateAsync(payloads);
