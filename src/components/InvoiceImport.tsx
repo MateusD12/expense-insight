@@ -120,6 +120,8 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
     return { toImport, toSkip, total };
   }, [items]);
 
+  if (!invoice) return null;
+
   const handleImport = async () => {
     const selected = items.filter((it) => it.action === "import");
     if (selected.length === 0) {
