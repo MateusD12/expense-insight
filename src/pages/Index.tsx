@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { InvoiceImport } from "@/components/InvoiceImport";
-import { parseItauPdf, type ParsedInvoice } from "@/lib/parseItauPdf";
+import { parseInvoicePdf } from "@/lib/parseInvoicePdf";
+import type { ParsedInvoice } from "@/lib/invoiceTypes";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus,
@@ -135,6 +136,7 @@ export default function Index() {
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [parsedInvoice, setParsedInvoice] = useState<ParsedInvoice | null>(null);
+  const [parsedBanco, setParsedBanco] = useState<string>("Itaú");
   const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
   const [parsingPdf, setParsingPdf] = useState(false);
 
@@ -244,13 +246,15 @@ export default function Index() {
     if (!file) return;
     setParsingPdf(true);
     try {
-      const invoice = await parseItauPdf(file);
+      const { banco, invoice } = await parseInvoicePdf(file);
       if (invoice.transacoes.length === 0) {
         toast.error("Nenhuma transação encontrada no PDF.");
         return;
       }
+      setParsedBanco(banco);
       setParsedInvoice(invoice);
       setShowInvoiceDialog(true);
+      toast.success(`Fatura ${banco} detectada: ${invoice.transacoes.length} transação(ões).`);
     } catch (err: any) {
       toast.error(err.message || "Erro ao ler o PDF.");
     } finally {
@@ -1300,7 +1304,7 @@ export default function Index() {
         onOpenChange={setShowInvoiceDialog}
         invoice={parsedInvoice}
         allExpenses={normalizedExpenses}
-        banco="Itaú"
+        banco={parsedBanco}
         userId={session?.user?.id || ""}
         onImport={async (payloads) => {
           await bulkAddExpenses.mutateAsync(payloads);

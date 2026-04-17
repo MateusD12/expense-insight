@@ -179,7 +179,7 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileText size={20} /> Revisar Fatura — Cartão •••• {invoice.cartao}
+            <FileText size={20} /> Revisar Fatura {banco} — Cartão •••• {invoice.cartao}
           </DialogTitle>
         </DialogHeader>
 

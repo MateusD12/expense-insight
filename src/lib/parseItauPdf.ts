@@ -4,25 +4,8 @@ import pdfWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
-export interface ParsedTransaction {
-  data: string; // YYYY-MM-DD
-  estabelecimento: string;
-  estabelecimentoBase: string; // sem "XX/YY"
-  classificacao: string;
-  valor: number;
-  parcela: number;
-  totalParcela: number;
-  cartao: string;
-  fatura: string; // YYYY-MM-DD (1º do mês de vencimento)
-}
-
-export interface ParsedInvoice {
-  cartao: string;
-  vencimento: string; // YYYY-MM-DD
-  fatura: string; // YYYY-MM-01
-  totalFatura: number;
-  transacoes: ParsedTransaction[];
-}
+export type { ParsedTransaction, ParsedInvoice } from "./invoiceTypes";
+import type { ParsedInvoice, ParsedTransaction } from "./invoiceTypes";
 
 const MESES: Record<string, number> = {
   jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
