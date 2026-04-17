@@ -103,8 +103,6 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
   // Reset ao abrir nova fatura
   useMemo(() => setItems(initialItems), [initialItems]);
 
-  if (!invoice) return null;
-
   const updateItem = (idx: number, patch: Partial<ReviewItem>) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
