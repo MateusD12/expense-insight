@@ -18,12 +18,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { InvoiceImport } from "@/components/InvoiceImport";
+import { parseItauPdf, type ParsedInvoice } from "@/lib/parseItauPdf";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus,
   Pencil,
   Trash2,
   Upload,
+  FileText,
   LogOut,
   Chrome,
   Wallet,
@@ -131,6 +134,9 @@ export default function Index() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [parsedInvoice, setParsedInvoice] = useState<ParsedInvoice | null>(null);
+  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
+  const [parsingPdf, setParsingPdf] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
