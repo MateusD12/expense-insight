@@ -1294,6 +1294,18 @@ export default function Index() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <InvoiceImport
+        open={showInvoiceDialog}
+        onOpenChange={setShowInvoiceDialog}
+        invoice={parsedInvoice}
+        allExpenses={normalizedExpenses}
+        banco="Itaú"
+        userId={session?.user?.id || ""}
+        onImport={async (payloads) => {
+          await bulkAddExpenses.mutateAsync(payloads);
+        }}
+      />
     </div>
   );
 }
