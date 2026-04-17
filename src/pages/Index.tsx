@@ -238,6 +238,26 @@ export default function Index() {
     event.target.value = "";
   };
 
+  const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setParsingPdf(true);
+    try {
+      const invoice = await parseItauPdf(file);
+      if (invoice.transacoes.length === 0) {
+        toast.error("Nenhuma transação encontrada no PDF.");
+        return;
+      }
+      setParsedInvoice(invoice);
+      setShowInvoiceDialog(true);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao ler o PDF.");
+    } finally {
+      setParsingPdf(false);
+    }
+  };
+
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
