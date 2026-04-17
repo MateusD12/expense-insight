@@ -653,7 +653,20 @@ export default function Index() {
               />
               <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4">
                 <Upload size={18} className="sm:mr-2" />
-                <span className="hidden sm:inline">Importar</span>
+                <span className="hidden sm:inline">CSV</span>
+              </Button>
+            </div>
+            <div className="relative hover:opacity-90 transition-opacity">
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={handlePdfUpload}
+                disabled={parsingPdf}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-wait"
+              />
+              <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4" disabled={parsingPdf}>
+                <FileText size={18} className="sm:mr-2" />
+                <span className="hidden sm:inline">{parsingPdf ? "Lendo..." : "Fatura PDF"}</span>
               </Button>
             </div>
             <Button
