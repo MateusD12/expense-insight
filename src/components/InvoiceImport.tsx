@@ -106,6 +106,21 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
   // Reset ao abrir nova fatura
   useMemo(() => setItems(initialItems), [initialItems]);
 
+  const classificacoesExistentes = useMemo(
+    () =>
+      Array.from(
+        new Set(allExpenses.map((e) => e.classificacao).filter(Boolean) as string[]),
+      ).sort(),
+    [allExpenses],
+  );
+  const justificativasExistentes = useMemo(
+    () =>
+      Array.from(
+        new Set(allExpenses.map((e) => e.justificativa).filter(Boolean) as string[]),
+      ).sort(),
+    [allExpenses],
+  );
+
   const updateItem = (idx: number, patch: Partial<ReviewItem>) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
