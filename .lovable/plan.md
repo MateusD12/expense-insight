@@ -1,86 +1,31 @@
 
 
-## Plano: Importação de Fatura PDF do Itaú com Detecção de Duplicatas
+## Problema
 
-### Resumo
+O parser do Itaú está pegando só 35 de ~60+ transações e somando R$ 332 em vez de R$ 3.326,53. Olhando o screenshot da fatura (R$ 3.326,53) vs revisão (R$ 1.220,66 selecionado, Total PDF R$ 332,00):
 
-Adicionar um botão "Importar Fatura" que aceita PDFs de faturas do Itaú. O sistema extrai as transações do PDF, cruza com as despesas já cadastradas para identificar possíveis duplicatas (especialmente parcelas), e apresenta uma tela de revisão antes de importar.
+1. **Total PDF errado (R$ 332)**: o regex `Total\s+desta\s+fatura` provavelmente está casando com algum subtotal ou o valor está sendo cortado (talvez pegou só "332" de "3.326,53" por causa de espaço no meio do número no PDF).
+2. **Faltam transações**: o parser depende do marcador "Lançamentos" para começar (`inLancamentos = true`). Faturas do Itaú têm várias seções/páginas separadas por cartão (titular + adicionais), cada uma com seu próprio cabeçalho — após a primeira seção terminar (`Total dos lançamentos`), `inLancamentos` vira `false` e nunca mais reabre, perdendo todas as outras seções.
+3. **Reconstrução de linhas frágil**: agrupamento por Y arredondado pode quebrar linhas onde valor e descrição estão em Y ligeiramente diferentes, ou juntar duas linhas distintas. Também explica perda de transações.
 
-### Estrutura do PDF do Itaú (analisado)
+## Plano de correção
 
-- **Cabeçalho**: Cartão `4705.XXXX.XXXX.2596`, vencimento, valor total
-- **Transações**: Tabelas com colunas DATA | ESTABELECIMENTO | VALOR EM R$
-- **Parcelas**: Aparecem como "A PETITOSA RAC 01/04" (parcela 1 de 4) no nome do estabelecimento
-- **Fatura**: Derivada do vencimento (ex: vencimento 06/04/2026 → fatura 2026-04)
+**Arquivo: `src/lib/parseItauPdf.ts`**
 
-### Fluxo do Usuário
+1. **Reabrir seção em cada "Lançamentos"**: tornar `inLancamentos` reativo — toda vez que aparecer "lançamentos no cartão", "lançamentos nacionais", "lançamentos internacionais", "compras parceladas", reativar. Manter os finalizadores ("total dos lançamentos", "próximas faturas", etc.) que apenas pausam até a próxima seção.
 
-```text
-1. Clica "Importar Fatura" → abre file picker (.pdf)
-2. Sistema parseia o PDF e extrai transações
-3. Tela de revisão mostra cada transação com status:
-   - ✅ "Nova" — será adicionada
-   - ⚠️ "Possível duplicata" — encontrou despesa similar no banco
-     → Opções: "É a mesma (pular)" | "Identificar outra" | "Adicionar mesmo assim"
-   - 🔗 "Parcela detectada" — ex: "A PETITOSA RAC 02/04"
-     → Mostra a parcela anterior já cadastrada
-     → Opções: "Confirmar vinculação" | "Adicionar como nova"
-4. Usuário confirma → sistema importa apenas as selecionadas
-```
+2. **Modo permissivo (fallback)**: se após o parse só tiver poucas transações (<50% do esperado), refazer parse sem o gating de seção — qualquer linha que case `^DD/MM ... valor` vira transação, exceto se contiver palavras de pagamento ("pagamento efetuado", "estorno", "saldo anterior").
 
-### Arquivos a criar/modificar
+3. **Corrigir total da fatura**: 
+   - Tornar regex tolerante a espaços dentro do número: `R\$?\s*([\d][\d.,\s]*\d,\d{2})` e depois normalizar removendo espaços.
+   - Adicionar fallbacks: "O total da sua fatura é", "Total a pagar", "Valor total da fatura".
+   - Se múltiplos valores encontrados, pegar o **maior** (evita pegar subtotal).
 
-**1. `src/lib/parseItauPdf.ts`** (novo)
-- Usa `pdfjs-dist` para extrair texto do PDF
-- Parser regex para extrair: data, estabelecimento, valor, parcela (XX/YY)
-- Extrai info do cartão (últimos 4 dígitos) e data de vencimento
-- Calcula a fatura (mês do vencimento)
-- Retorna array de transações parseadas
+4. **Melhorar reconstrução de linhas**: aumentar tolerância de Y (agrupar Y dentro de ±2px) e ordenar items por X dentro da linha antes de juntar — evita perder textos com baseline ligeiramente deslocado.
 
-**2. `src/components/InvoiceImport.tsx`** (novo)
-- Dialog de revisão com tabela de transações extraídas
-- Para cada transação, compara com `allExpenses` por:
-  - Nome similar (fuzzy match por substring do estabelecimento)
-  - Valor igual
-  - Mesmo cartão
-  - Parcela correspondente (se "RAC 02/04", busca "RAC 01/04" já cadastrada)
-- Status visual: nova, duplicata, parcela vinculada
-- Botões de ação por linha
-- Botão "Importar Selecionadas" no footer
+5. **Logs de diagnóstico**: `console.log` com nº de páginas, nº de linhas extraídas, nº de transações por seção e total detectado — facilita debugar próximas faturas.
 
-**3. `src/pages/Index.tsx`** (modificar)
-- Adicionar botão "Importar Fatura" ao lado de "Adicionar Despesa"
-- Estado para controlar o dialog de importação
-- Integração com `bulkAddExpenses` para salvar
+### Sem mudanças em UI
 
-### Lógica de Detecção de Duplicatas
-
-```text
-Para cada transação do PDF:
-  1. Buscar no banco despesas com:
-     - Mesmo valor (±0.01)
-     - Mesmo cartão (últimos 4 dígitos)
-     - Mesma fatura
-     - Nome similar (contains/substring)
-  2. Se encontrar → marcar como "possível duplicata"
-  
-Para parcelas (ex: "PETITOSA RAC 02/04"):
-  1. Extrair nome base + número da parcela
-  2. Buscar despesa existente com mesmo nome base
-     e parcela anterior (01/04)
-  3. Se encontrar → marcar como "parcela detectada"
-     e pré-vincular
-```
-
-### Dependência
-
-- Instalar `pdfjs-dist` para parsing de PDF no browser
-
-### Detalhes Técnicos
-
-- O parsing é 100% client-side (sem edge function)
-- O PDF do Itaú tem padrão consistente: tabelas com "DATA | ESTABELECIMENTO | VALOR EM R$"
-- Parcelas são identificadas pelo padrão `XX/YY` no nome do estabelecimento
-- O cartão é extraído do cabeçalho (`4705.XXXX.XXXX.2596` → cartão "2596")
-- A classificação é inferida da categoria que aparece abaixo do estabelecimento (ex: "supermercado", "restaurante", "lazer")
+A tela de revisão já é genérica; só vai exibir mais linhas e o total correto.
 
