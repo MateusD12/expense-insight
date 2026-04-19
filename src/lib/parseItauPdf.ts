@@ -178,23 +178,26 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
   const refYear = parseInt(venAno, 10);
   const refMonth = parseInt(venMes, 10);
 
-  // Total da fatura — tolerante a espaços dentro do número, pega o MAIOR valor encontrado
-  const totalCandidates: number[] = [];
-  const totalRegexes = [
-    /Total\s+desta\s+fatura[^\d-]*([\d][\d.\s]*,\d{2})/gi,
-    /Total\s+da\s+sua\s+fatura\s+é[^\d]*R\$?\s*([\d][\d.\s]*,\d{2})/gi,
-    /Total\s+a\s+pagar[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/gi,
-    /Valor\s+total\s+da\s+fatura[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/gi,
+  // Total da fatura — busca priorizada (rótulo mais específico primeiro)
+  const totalRegexesPriorizados = [
+    /O\s+total\s+da\s+sua\s+fatura\s+é[^\d]*R\$?\s*([\d][\d.\s]*,\d{2})/i,
+    /Total\s+desta\s+fatura[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/i,
+    /Com\s+vencimento\s+em[\s\S]{0,80}?R\$\s*([\d][\d.\s]*,\d{2})/i,
+    /Total\s+a\s+pagar[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/i,
+    /Valor\s+total\s+da\s+fatura[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/i,
   ];
-  for (const re of totalRegexes) {
-    let mm: RegExpExecArray | null;
-    while ((mm = re.exec(fullText)) !== null) {
+  let totalFatura = 0;
+  for (const re of totalRegexesPriorizados) {
+    const mm = fullText.match(re);
+    if (mm) {
       const v = parseValor(mm[1]);
-      if (!isNaN(v) && v > 0) totalCandidates.push(v);
+      if (!isNaN(v) && v > 0) {
+        totalFatura = v;
+        console.log(`[parseItauPdf] total detectado via ${re} → ${v}`);
+        break;
+      }
     }
   }
-  const totalFatura = totalCandidates.length ? Math.max(...totalCandidates) : 0;
-  console.log(`[parseItauPdf] total candidates=`, totalCandidates, "→", totalFatura);
 
   // Parse de transações: seção reativa (reabre a cada "Lançamentos")
   const linhas = fullText.split("\n");
