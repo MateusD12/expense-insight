@@ -6,12 +6,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckCircle2, AlertTriangle, Link2, Loader2, FileText } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CheckCircle2, AlertTriangle, Link2, Loader2, FileText, ChevronsUpDown, Check, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import type { ParsedInvoice, ParsedTransaction } from "@/lib/parseItauPdf";
 import type { Expense, ExpenseInsert } from "@/hooks/useExpenses";
+import { ComboCell } from "@/components/ComboCell";
 
 type Status = "new" | "duplicate" | "installment";
 type Action = "import" | "skip";
@@ -102,6 +106,21 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
 
   // Reset ao abrir nova fatura
   useMemo(() => setItems(initialItems), [initialItems]);
+
+  const classificacoesExistentes = useMemo(
+    () =>
+      Array.from(
+        new Set(allExpenses.map((e) => e.classificacao).filter(Boolean) as string[]),
+      ).sort(),
+    [allExpenses],
+  );
+  const justificativasExistentes = useMemo(
+    () =>
+      Array.from(
+        new Set(allExpenses.map((e) => e.justificativa).filter(Boolean) as string[]),
+      ).sort(),
+    [allExpenses],
+  );
 
   const updateItem = (idx: number, patch: Partial<ReviewItem>) => {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -249,18 +268,20 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
                     )}
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <ComboCell
                       value={it.classificacao}
-                      onChange={(e) => updateItem(idx, { classificacao: e.target.value })}
-                      className="h-8 text-xs w-[110px]"
+                      options={classificacoesExistentes}
+                      onChange={(v) => updateItem(idx, { classificacao: v })}
+                      width="w-[120px]"
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <ComboCell
                       value={it.justificativa}
-                      onChange={(e) => updateItem(idx, { justificativa: e.target.value })}
-                      className="h-8 text-xs w-[120px]"
+                      options={justificativasExistentes}
+                      onChange={(v) => updateItem(idx, { justificativa: v })}
                       placeholder="-"
+                      width="w-[130px]"
                     />
                   </TableCell>
                   <TableCell className="text-center text-xs whitespace-nowrap">
