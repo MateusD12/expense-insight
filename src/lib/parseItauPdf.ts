@@ -199,9 +199,23 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     }
   }
 
+  // Helper de dedup com chave normalizada (alfanum + lowercase)
+  const dedupTransacoes = (txs: ParsedTransaction[]): ParsedTransaction[] => {
+    const seen = new Set<string>();
+    const out: ParsedTransaction[] = [];
+    for (const t of txs) {
+      const estabNorm = t.estabelecimento.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      const key = `${t.data}|${estabNorm}|${t.valor.toFixed(2)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(t);
+    }
+    return out;
+  };
+
   // Parse de transações: seção reativa (reabre a cada "Lançamentos")
   const linhas = fullText.split("\n");
-  const transacoes: ParsedTransaction[] = [];
+  const transacoesSecao: ParsedTransaction[] = [];
   let inSection = false;
   let sectionsOpened = 0;
 
@@ -221,37 +235,29 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     if (lineLooksLikeSkip(lower)) continue;
 
     const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
-    if (tx) transacoes.push(tx);
+    if (tx) transacoesSecao.push(tx);
   }
 
-  console.log(`[parseItauPdf] seções abertas=${sectionsOpened}, transações (modo seção)=${transacoes.length}`);
+  const transacoesSecaoDedup = dedupTransacoes(transacoesSecao);
+  console.log(`[parseItauPdf] seções abertas=${sectionsOpened}, transações (seção)=${transacoesSecao.length}, dedup=${transacoesSecaoDedup.length}`);
 
-  // Fallback permissivo: se temos pouquíssimas transações vs. total, refaz sem gating
-  const somaSecao = transacoes.reduce((s, t) => s + t.valor, 0);
-  const ratio = totalFatura > 0 ? somaSecao / totalFatura : 1;
-  if (ratio < 0.5) {
-    console.log(`[parseItauPdf] fallback permissivo ativado (ratio=${ratio.toFixed(2)})`);
-    const permissivas: ParsedTransaction[] = [];
-    for (const linha of linhas) {
-      const lower = linha.toLowerCase();
-      if (lineLooksLikeSkip(lower)) continue;
-      // Evita cabeçalhos óbvios
-      if (/vencimento|data\s+estabelecimento|valor\s+em\s+r\$/.test(lower)) continue;
-      const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
-      if (tx) permissivas.push(tx);
-    }
-    // Dedup por (data+estabelecimento+valor)
-    const seen = new Set<string>();
-    const dedup: ParsedTransaction[] = [];
-    for (const t of permissivas) {
-      const key = `${t.data}|${t.estabelecimento}|${t.valor}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      dedup.push(t);
-    }
-    console.log(`[parseItauPdf] fallback transações=${dedup.length}, soma=${dedup.reduce((s, t) => s + t.valor, 0).toFixed(2)}`);
-    return { cartao, vencimento, fatura, totalFatura, transacoes: dedup };
+  // Modo seção é o padrão. Fallback só se modo seção retornou ZERO.
+  if (transacoesSecaoDedup.length > 0) {
+    const soma = transacoesSecaoDedup.reduce((s, t) => s + t.valor, 0);
+    console.log(`[parseItauPdf] usando modo seção, soma=${soma.toFixed(2)}, totalFatura=${totalFatura}`);
+    return { cartao, vencimento, fatura, totalFatura, transacoes: transacoesSecaoDedup };
   }
 
-  return { cartao, vencimento, fatura, totalFatura, transacoes };
+  console.log(`[parseItauPdf] modo seção vazio — ativando fallback permissivo`);
+  const permissivas: ParsedTransaction[] = [];
+  for (const linha of linhas) {
+    const lower = linha.toLowerCase();
+    if (lineLooksLikeSkip(lower)) continue;
+    if (/vencimento|data\s+estabelecimento|valor\s+em\s+r\$/.test(lower)) continue;
+    const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
+    if (tx) permissivas.push(tx);
+  }
+  const dedup = dedupTransacoes(permissivas);
+  console.log(`[parseItauPdf] fallback transações=${dedup.length}, soma=${dedup.reduce((s, t) => s + t.valor, 0).toFixed(2)}`);
+  return { cartao, vencimento, fatura, totalFatura, transacoes: dedup };
 }
