@@ -7,26 +7,40 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 export type { ParsedTransaction, ParsedInvoice } from "./invoiceTypes";
 import type { ParsedInvoice, ParsedTransaction } from "./invoiceTypes";
 
-const MESES: Record<string, number> = {
-  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
-  jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
-};
-
 const CLASSIF_KEYWORDS = new Set([
-  "supermercado", "restaurante", "lazer", "saude", "saúde", "sauúde",
+  "supermercado", "restaurante", "lazer", "saude", "saúde",
   "educação", "educacao", "outros", "serviços", "servicos",
   "transporte", "vestuário", "vestuario", "farmácia", "farmacia",
   "combustível", "combustivel", "supermarket",
 ]);
 
+const SECTION_OPENERS = [
+  "lançamentos", "lancamentos",
+  "compras parceladas", "compras nacionais", "compras internacionais",
+  "lançamentos no cartão", "lancamentos no cartao",
+];
+
+const SECTION_CLOSERS = [
+  "total dos lançamentos", "total dos lancamentos",
+  "próximas faturas", "proximas faturas",
+  "limites de crédito", "limites de credito",
+  "encargos cobrados", "demonstrativo de encargos",
+  "informações gerais",
+];
+
+const SKIP_LINE_KEYWORDS = [
+  "pagamento efetuado", "pagto efetuado", "estorno", "saldo anterior",
+  "saldo da fatura anterior", "juros", "iof", "anuidade diferenciada",
+  "encargos", "multa",
+];
+
 function parseValor(s: string): number {
-  // "1.234,56" -> 1234.56
-  const clean = s.replace(/\./g, "").replace(",", ".").trim();
+  // Remove espaços internos (PDF pode separar dígitos), pontos de milhar, vira "," em "."
+  const clean = s.replace(/\s+/g, "").replace(/\./g, "").replace(",", ".").trim();
   return parseFloat(clean);
 }
 
 function parseDataDDMM(dia: string, mes: string, refYear: number, refMonth: number): string {
-  // Ajuste de ano: se mês da transação > mês do vencimento, é do ano anterior
   const d = parseInt(dia, 10);
   const m = parseInt(mes, 10);
   let y = refYear;
@@ -34,24 +48,10 @@ function parseDataDDMM(dia: string, mes: string, refYear: number, refMonth: numb
   return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-function detectParcela(estabelecimento: string): { base: string; parcela: number; total: number } {
-  // padrão "XX/YY" no final
-  const m = estabelecimento.match(/^(.*?)\s+(\d{1,2})\/(\d{1,2})\s*$/);
-  if (m) {
-    return {
-      base: m[1].trim(),
-      parcela: parseInt(m[2], 10),
-      total: parseInt(m[3], 10),
-    };
-  }
-  return { base: estabelecimento.trim(), parcela: 1, total: 1 };
-}
-
 function inferClassificacao(line: string): string {
   const lower = line.toLowerCase();
   for (const kw of CLASSIF_KEYWORDS) {
     if (lower.includes(kw)) {
-      // Normalizar
       if (kw.startsWith("super") || kw === "supermarket") return "Alimentação";
       if (kw === "restaurante") return "Alimentação";
       if (kw === "lazer") return "Lazer";
@@ -68,124 +68,186 @@ function inferClassificacao(line: string): string {
   return "Outros";
 }
 
+function lineLooksLikeSkip(lower: string): boolean {
+  return SKIP_LINE_KEYWORDS.some((k) => lower.includes(k));
+}
+
+function buildTransactionFromLine(
+  linha: string,
+  refYear: number,
+  refMonth: number,
+  cartao: string,
+  fatura: string,
+): ParsedTransaction | null {
+  // DD/MM <descrição> <valor BR>
+  const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?[\d.\s]+,\d{2})\s*$/);
+  if (!m) return null;
+  const [, dia, mes, descRaw, valorStr] = m;
+  const valor = parseValor(valorStr);
+  if (isNaN(valor) || valor <= 0) return null;
+
+  const desc = descRaw.replace(/\s+/g, " ").trim();
+  const classificacao = inferClassificacao(desc);
+
+  const parcMatch = desc.match(/(.*?)\s+(\d{1,2})\/(\d{1,2})(\s+|$)/);
+  let estabelecimento = desc;
+  let estabelecimentoBase = desc;
+  let parcela = 1;
+  let totalParcela = 1;
+  if (parcMatch) {
+    estabelecimentoBase = parcMatch[1].trim();
+    parcela = parseInt(parcMatch[2], 10);
+    totalParcela = parseInt(parcMatch[3], 10);
+    estabelecimento = `${estabelecimentoBase} ${parcela}/${totalParcela}`;
+  } else {
+    const parts = desc.split(" ");
+    const idxClass = parts.findIndex((p) => CLASSIF_KEYWORDS.has(p.toLowerCase()));
+    if (idxClass > 0) {
+      estabelecimentoBase = parts.slice(0, idxClass).join(" ").trim();
+      estabelecimento = estabelecimentoBase;
+    }
+  }
+
+  return {
+    data: parseDataDDMM(dia, mes, refYear, refMonth),
+    estabelecimento,
+    estabelecimentoBase,
+    classificacao,
+    valor,
+    parcela,
+    totalParcela,
+    cartao,
+    fatura,
+  };
+}
+
 export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  // Concatena texto de todas as páginas em ordem, com quebras de linha
+  // Reconstrói texto agrupando por Y com tolerância e ordenando por X
   let fullText = "";
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    // Agrupa por Y para reconstruir linhas
-    const items = content.items as any[];
-    const lines: Record<number, string[]> = {};
-    for (const it of items) {
-      const y = Math.round(it.transform[5]);
-      if (!lines[y]) lines[y] = [];
-      lines[y].push(it.str);
+    const items = (content.items as any[]).filter((it) => typeof it.str === "string");
+
+    // Agrupa items em "linhas" usando tolerância de Y (~2px)
+    type Item = { x: number; y: number; str: string };
+    const arr: Item[] = items.map((it) => ({
+      x: it.transform[4],
+      y: it.transform[5],
+      str: it.str,
+    }));
+
+    // Ordena top->bottom (Y desc), então agrupa por proximidade
+    arr.sort((a, b) => b.y - a.y);
+    const groups: Item[][] = [];
+    const TOL = 2;
+    for (const it of arr) {
+      const g = groups[groups.length - 1];
+      if (g && Math.abs(g[0].y - it.y) <= TOL) {
+        g.push(it);
+      } else {
+        groups.push([it]);
+      }
     }
-    const sortedY = Object.keys(lines)
-      .map(Number)
-      .sort((a, b) => b - a); // top to bottom
-    for (const y of sortedY) {
-      const lineText = lines[y].join(" ").replace(/\s+/g, " ").trim();
+
+    for (const g of groups) {
+      g.sort((a, b) => a.x - b.x);
+      const lineText = g.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
       if (lineText) fullText += lineText + "\n";
     }
+    fullText += "\n";
   }
 
-  // Cartão: "4705.XXXX.XXXX.2596"
+  console.log(`[parseItauPdf] páginas=${pdf.numPages}, linhas=${fullText.split("\n").length}`);
+
+  // Cartão
   const cartaoMatch = fullText.match(/(\d{4})\.X{4}\.X{4}\.(\d{4})/i)
+    || fullText.match(/final\s+(\d{4})/i)
     || fullText.match(/Cart[aã]o[^\d]*\d{4}\.?X{0,4}\.?X{0,4}\.?(\d{4})/i);
   const cartao = cartaoMatch ? cartaoMatch[cartaoMatch.length - 1] : "0000";
 
-  // Vencimento: "Vencimento: 06/04/2026" ou "Vencimento 06/04/2026"
+  // Vencimento
   const vencMatch = fullText.match(/Vencimento[:\s]+(\d{2})\/(\d{2})\/(\d{4})/i);
   if (!vencMatch) throw new Error("Não foi possível identificar a data de vencimento da fatura.");
-  const venDia = vencMatch[1];
-  const venMes = vencMatch[2];
-  const venAno = vencMatch[3];
+  const [, venDia, venMes, venAno] = vencMatch;
   const vencimento = `${venAno}-${venMes}-${venDia}`;
   const fatura = `${venAno}-${venMes}-01`;
   const refYear = parseInt(venAno, 10);
   const refMonth = parseInt(venMes, 10);
 
-  // Total da fatura
-  const totalMatch = fullText.match(/Total\s+desta\s+fatura[^\d-]*([\d.,]+)/i)
-    || fullText.match(/total\s+da\s+sua\s+fatura\s+é[^\d]*R\$\s*([\d.,]+)/i);
-  const totalFatura = totalMatch ? parseValor(totalMatch[1]) : 0;
+  // Total da fatura — tolerante a espaços dentro do número, pega o MAIOR valor encontrado
+  const totalCandidates: number[] = [];
+  const totalRegexes = [
+    /Total\s+desta\s+fatura[^\d-]*([\d][\d.\s]*,\d{2})/gi,
+    /Total\s+da\s+sua\s+fatura\s+é[^\d]*R\$?\s*([\d][\d.\s]*,\d{2})/gi,
+    /Total\s+a\s+pagar[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/gi,
+    /Valor\s+total\s+da\s+fatura[^\d-]*R?\$?\s*([\d][\d.\s]*,\d{2})/gi,
+  ];
+  for (const re of totalRegexes) {
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(fullText)) !== null) {
+      const v = parseValor(mm[1]);
+      if (!isNaN(v) && v > 0) totalCandidates.push(v);
+    }
+  }
+  const totalFatura = totalCandidates.length ? Math.max(...totalCandidates) : 0;
+  console.log(`[parseItauPdf] total candidates=`, totalCandidates, "→", totalFatura);
 
-  // Transações: cada linha começa com DD/MM seguido de descrição e termina com valor
-  // Padrão: "23/02 GUEDES BARSAO PAULOBR restaurante SAO PAULO 43,00"
+  // Parse de transações: seção reativa (reabre a cada "Lançamentos")
   const linhas = fullText.split("\n");
   const transacoes: ParsedTransaction[] = [];
+  let inSection = false;
+  let sectionsOpened = 0;
 
-  // Marcadores de seção: só processa após "Lançamentos" e antes de "Total" / "próximas faturas"
-  let inLancamentos = false;
   for (const linha of linhas) {
     const lower = linha.toLowerCase();
-    if (lower.includes("lançamentos") || lower.includes("lancamentos")) {
-      inLancamentos = true;
+
+    if (SECTION_OPENERS.some((k) => lower.includes(k))) {
+      inSection = true;
+      sectionsOpened++;
       continue;
     }
-    if (!inLancamentos) continue;
-    if (
-      lower.includes("total dos lançamentos") ||
-      lower.includes("total dos lancamentos") ||
-      lower.includes("próximas faturas") ||
-      lower.includes("proximas faturas") ||
-      lower.includes("limites de crédito") ||
-      lower.includes("encargos cobrados")
-    ) {
-      inLancamentos = false;
+    if (SECTION_CLOSERS.some((k) => lower.includes(k))) {
+      inSection = false;
       continue;
     }
+    if (!inSection) continue;
+    if (lineLooksLikeSkip(lower)) continue;
 
-    // Regex: DD/MM <descrição> <valor>  (valor pode ter sinal)
-    const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?[\d.]+,\d{2})\s*$/);
-    if (!m) continue;
+    const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
+    if (tx) transacoes.push(tx);
+  }
 
-    const [, dia, mes, descRaw, valorStr] = m;
-    const valor = parseValor(valorStr);
-    if (isNaN(valor) || valor <= 0) continue; // ignora pagamentos negativos
+  console.log(`[parseItauPdf] seções abertas=${sectionsOpened}, transações (modo seção)=${transacoes.length}`);
 
-    const desc = descRaw.replace(/\s+/g, " ").trim();
-    const classificacao = inferClassificacao(desc);
-
-    // Remove a parte de classificação/cidade do nome para detectar parcela
-    // Ex: "A PETITOSA RAC 01/04 lazer SAO PAULO" -> primeiro pega "A PETITOSA RAC 01/04"
-    // Estratégia: procura "XX/YY" em qualquer lugar
-    const parcMatch = desc.match(/(.*?)\s+(\d{1,2})\/(\d{1,2})(\s+|$)/);
-    let estabelecimento = desc;
-    let estabelecimentoBase = desc;
-    let parcela = 1;
-    let totalParcela = 1;
-    if (parcMatch) {
-      estabelecimentoBase = parcMatch[1].trim();
-      parcela = parseInt(parcMatch[2], 10);
-      totalParcela = parseInt(parcMatch[3], 10);
-      estabelecimento = `${estabelecimentoBase} ${parcela}/${totalParcela}`;
-    } else {
-      // Pega só a primeira "palavra-bloco" antes da classificação
-      const parts = desc.split(" ");
-      const idxClass = parts.findIndex((p) => CLASSIF_KEYWORDS.has(p.toLowerCase()));
-      if (idxClass > 0) {
-        estabelecimentoBase = parts.slice(0, idxClass).join(" ").trim();
-        estabelecimento = estabelecimentoBase;
-      }
+  // Fallback permissivo: se temos pouquíssimas transações vs. total, refaz sem gating
+  const somaSecao = transacoes.reduce((s, t) => s + t.valor, 0);
+  const ratio = totalFatura > 0 ? somaSecao / totalFatura : 1;
+  if (ratio < 0.5) {
+    console.log(`[parseItauPdf] fallback permissivo ativado (ratio=${ratio.toFixed(2)})`);
+    const permissivas: ParsedTransaction[] = [];
+    for (const linha of linhas) {
+      const lower = linha.toLowerCase();
+      if (lineLooksLikeSkip(lower)) continue;
+      // Evita cabeçalhos óbvios
+      if (/vencimento|data\s+estabelecimento|valor\s+em\s+r\$/.test(lower)) continue;
+      const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
+      if (tx) permissivas.push(tx);
     }
-
-    transacoes.push({
-      data: parseDataDDMM(dia, mes, refYear, refMonth),
-      estabelecimento,
-      estabelecimentoBase,
-      classificacao,
-      valor,
-      parcela,
-      totalParcela,
-      cartao,
-      fatura,
-    });
+    // Dedup por (data+estabelecimento+valor)
+    const seen = new Set<string>();
+    const dedup: ParsedTransaction[] = [];
+    for (const t of permissivas) {
+      const key = `${t.data}|${t.estabelecimento}|${t.valor}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      dedup.push(t);
+    }
+    console.log(`[parseItauPdf] fallback transações=${dedup.length}, soma=${dedup.reduce((s, t) => s + t.valor, 0).toFixed(2)}`);
+    return { cartao, vencimento, fatura, totalFatura, transacoes: dedup };
   }
 
   return { cartao, vencimento, fatura, totalFatura, transacoes };
