@@ -15,6 +15,7 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import type { ParsedInvoice, ParsedTransaction } from "@/lib/parseItauPdf";
 import type { Expense, ExpenseInsert } from "@/hooks/useExpenses";
+import { ComboCell } from "@/components/ComboCell";
 
 type Status = "new" | "duplicate" | "installment";
 type Action = "import" | "skip";
