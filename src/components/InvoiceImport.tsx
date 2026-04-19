@@ -268,18 +268,20 @@ export function InvoiceImport({ open, onOpenChange, invoice, allExpenses, banco,
                     )}
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <ComboCell
                       value={it.classificacao}
-                      onChange={(e) => updateItem(idx, { classificacao: e.target.value })}
-                      className="h-8 text-xs w-[110px]"
+                      options={classificacoesExistentes}
+                      onChange={(v) => updateItem(idx, { classificacao: v })}
+                      width="w-[120px]"
                     />
                   </TableCell>
                   <TableCell>
-                    <Input
+                    <ComboCell
                       value={it.justificativa}
-                      onChange={(e) => updateItem(idx, { justificativa: e.target.value })}
-                      className="h-8 text-xs w-[120px]"
+                      options={justificativasExistentes}
+                      onChange={(v) => updateItem(idx, { justificativa: v })}
                       placeholder="-"
+                      width="w-[130px]"
                     />
                   </TableCell>
                   <TableCell className="text-center text-xs whitespace-nowrap">
