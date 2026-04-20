@@ -23,9 +23,17 @@ const SECTION_OPENERS = [
 const SECTION_CLOSERS = [
   "total dos lançamentos", "total dos lancamentos",
   "próximas faturas", "proximas faturas",
+  "parcelas a vencer", "compras parceladas a vencer",
+  "demais parcelas", "parcelamento da fatura anterior",
   "limites de crédito", "limites de credito",
   "encargos cobrados", "demonstrativo de encargos",
   "informações gerais",
+];
+
+// Seções que, uma vez fechadas, NÃO devem reabrir mesmo que apareça "Lançamentos" depois
+const HARD_STOP_SECTIONS = [
+  "próximas faturas", "proximas faturas",
+  "parcelas a vencer", "compras parceladas a vencer",
 ];
 
 const SKIP_LINE_KEYWORDS = [
