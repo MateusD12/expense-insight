@@ -80,6 +80,8 @@ function lineLooksLikeSkip(lower: string): boolean {
   return SKIP_LINE_KEYWORDS.some((k) => lower.includes(k));
 }
 
+const VALUE_RE_GLOBAL = /-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+
 function buildTransactionFromLine(
   linha: string,
   refYear: number,
@@ -87,8 +89,14 @@ function buildTransactionFromLine(
   cartao: string,
   fatura: string,
 ): ParsedTransaction | null {
-  // DD/MM <descrição> <valor BR>
-  const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?[\d.\s]+,\d{2})\s*$/);
+  // Descarta linhas com 2+ valores monetários (cabeçalhos/totais)
+  const values = linha.match(VALUE_RE_GLOBAL);
+  if (values && values.length >= 2) {
+    console.log(`[parseItauPdf] descartado (multi-valor): ${linha}`);
+    return null;
+  }
+  // DD/MM <descrição> <valor BR> — valor estritamente no fim
+  const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
   if (!m) return null;
   const [, dia, mes, descRaw, valorStr] = m;
   const valor = parseValor(valorStr);
