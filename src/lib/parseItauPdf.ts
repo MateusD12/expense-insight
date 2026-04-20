@@ -246,14 +246,23 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     return out;
   };
 
-  // Parse de transações: seção reativa (reabre a cada "Lançamentos")
+  // Parse de transações: seção reativa, mas com HARD STOP para "próximas faturas"
   const linhas = fullText.split("\n");
   const transacoesSecao: ParsedTransaction[] = [];
   let inSection = false;
+  let hardStopped = false;
   let sectionsOpened = 0;
 
   for (const linha of linhas) {
     const lower = linha.toLowerCase();
+
+    if (HARD_STOP_SECTIONS.some((k) => lower.includes(k))) {
+      hardStopped = true;
+      inSection = false;
+      console.log(`[parseItauPdf] HARD STOP em: ${linha}`);
+      continue;
+    }
+    if (hardStopped) continue;
 
     if (SECTION_OPENERS.some((k) => lower.includes(k))) {
       inSection = true;
