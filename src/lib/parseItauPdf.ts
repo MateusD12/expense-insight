@@ -23,9 +23,17 @@ const SECTION_OPENERS = [
 const SECTION_CLOSERS = [
   "total dos lançamentos", "total dos lancamentos",
   "próximas faturas", "proximas faturas",
+  "parcelas a vencer", "compras parceladas a vencer",
+  "demais parcelas", "parcelamento da fatura anterior",
   "limites de crédito", "limites de credito",
   "encargos cobrados", "demonstrativo de encargos",
   "informações gerais",
+];
+
+// Seções que, uma vez fechadas, NÃO devem reabrir mesmo que apareça "Lançamentos" depois
+const HARD_STOP_SECTIONS = [
+  "próximas faturas", "proximas faturas",
+  "parcelas a vencer", "compras parceladas a vencer",
 ];
 
 const SKIP_LINE_KEYWORDS = [
@@ -72,6 +80,8 @@ function lineLooksLikeSkip(lower: string): boolean {
   return SKIP_LINE_KEYWORDS.some((k) => lower.includes(k));
 }
 
+const VALUE_RE_GLOBAL = /-?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+
 function buildTransactionFromLine(
   linha: string,
   refYear: number,
@@ -79,8 +89,14 @@ function buildTransactionFromLine(
   cartao: string,
   fatura: string,
 ): ParsedTransaction | null {
-  // DD/MM <descrição> <valor BR>
-  const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?[\d.\s]+,\d{2})\s*$/);
+  // Descarta linhas com 2+ valores monetários (cabeçalhos/totais)
+  const values = linha.match(VALUE_RE_GLOBAL);
+  if (values && values.length >= 2) {
+    console.log(`[parseItauPdf] descartado (multi-valor): ${linha}`);
+    return null;
+  }
+  // DD/MM <descrição> <valor BR> — valor estritamente no fim
+  const m = linha.match(/^(\d{2})\/(\d{2})\s+(.+?)\s+(-?\d{1,3}(?:\.\d{3})*,\d{2})\s*$/);
   if (!m) return null;
   const [, dia, mes, descRaw, valorStr] = m;
   const valor = parseValor(valorStr);
@@ -143,7 +159,7 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     // Ordena top->bottom (Y desc), então agrupa por proximidade
     arr.sort((a, b) => b.y - a.y);
     const groups: Item[][] = [];
-    const TOL = 2;
+    const TOL = 3.5;
     for (const it of arr) {
       const g = groups[groups.length - 1];
       if (g && Math.abs(g[0].y - it.y) <= TOL) {
@@ -153,12 +169,29 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
       }
     }
 
+    // Constrói linhas e mescla quando começa com DD/MM mas não termina com valor,
+    // e a próxima é só um valor (descrição quebrada em 2 linhas)
+    const rawLines: string[] = [];
     for (const g of groups) {
       g.sort((a, b) => a.x - b.x);
       const lineText = g.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
-      if (lineText) fullText += lineText + "\n";
+      if (lineText) rawLines.push(lineText);
     }
-    fullText += "\n";
+    const VALUE_END = /-?\d{1,3}(?:\.\d{3})*,\d{2}\s*$/;
+    const VALUE_ONLY = /^-?\d{1,3}(?:\.\d{3})*,\d{2}\s*$/;
+    const DATE_START = /^\d{2}\/\d{2}\s/;
+    const merged: string[] = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      const cur = rawLines[i];
+      const next = rawLines[i + 1];
+      if (DATE_START.test(cur) && !VALUE_END.test(cur) && next && VALUE_ONLY.test(next)) {
+        merged.push(`${cur} ${next}`);
+        i++;
+      } else {
+        merged.push(cur);
+      }
+    }
+    fullText += merged.join("\n") + "\n\n";
   }
 
   console.log(`[parseItauPdf] páginas=${pdf.numPages}, linhas=${fullText.split("\n").length}`);
@@ -213,14 +246,23 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     return out;
   };
 
-  // Parse de transações: seção reativa (reabre a cada "Lançamentos")
+  // Parse de transações: seção reativa, mas com HARD STOP para "próximas faturas"
   const linhas = fullText.split("\n");
   const transacoesSecao: ParsedTransaction[] = [];
   let inSection = false;
+  let hardStopped = false;
   let sectionsOpened = 0;
 
   for (const linha of linhas) {
     const lower = linha.toLowerCase();
+
+    if (HARD_STOP_SECTIONS.some((k) => lower.includes(k))) {
+      hardStopped = true;
+      inSection = false;
+      console.log(`[parseItauPdf] HARD STOP em: ${linha}`);
+      continue;
+    }
+    if (hardStopped) continue;
 
     if (SECTION_OPENERS.some((k) => lower.includes(k))) {
       inSection = true;
