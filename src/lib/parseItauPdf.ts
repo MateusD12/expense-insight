@@ -243,58 +243,72 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     return out;
   };
 
-  // Parse de transações: seção reativa, mas com HARD STOP para "próximas faturas"
-  const linhas = fullText.split("\n");
+  // Parse de transações: POR PÁGINA, sem hard-stop global
   const transacoesSecao: ParsedTransaction[] = [];
-  let inSection = false;
-  let hardStopped = false;
   let sectionsOpened = 0;
 
-  for (const linha of linhas) {
-    const lower = linha.toLowerCase();
+  for (let pIdx = 0; pIdx < pageLines.length; pIdx++) {
+    const linhasPg = pageLines[pIdx];
+    let inSection = false;
+    let blocked = false; // bloqueio LOCAL da página (reabre se vier novo opener)
+    let countPg = 0;
 
-    if (HARD_STOP_SECTIONS.some((k) => lower.includes(k))) {
-      hardStopped = true;
-      inSection = false;
-      console.log(`[parseItauPdf] HARD STOP em: ${linha}`);
-      continue;
-    }
-    if (hardStopped) continue;
+    for (const linha of linhasPg) {
+      const lower = linha.toLowerCase();
 
-    if (SECTION_OPENERS.some((k) => lower.includes(k))) {
-      inSection = true;
-      sectionsOpened++;
-      continue;
-    }
-    if (SECTION_CLOSERS.some((k) => lower.includes(k))) {
-      inSection = false;
-      continue;
-    }
-    if (!inSection) continue;
-    if (lineLooksLikeSkip(lower)) continue;
+      // Opener sempre reabre (mesmo após blocked)
+      if (SECTION_OPENERS.some((k) => lower.includes(k))) {
+        inSection = true;
+        blocked = false;
+        sectionsOpened++;
+        continue;
+      }
 
-    const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
-    if (tx) transacoesSecao.push(tx);
+      // Hard-stop local: fecha bloco e bloqueia até novo opener
+      if (HARD_STOP_SECTIONS.some((k) => lower.includes(k))) {
+        inSection = false;
+        blocked = true;
+        console.log(`[parseItauPdf] pág ${pIdx + 1} bloco fechado (hard): ${linha}`);
+        continue;
+      }
+
+      if (SECTION_CLOSERS.some((k) => lower.includes(k))) {
+        inSection = false;
+        continue;
+      }
+
+      if (blocked || !inSection) continue;
+      if (lineLooksLikeSkip(lower)) continue;
+
+      const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
+      if (tx) {
+        transacoesSecao.push(tx);
+        countPg++;
+      }
+    }
+    console.log(`[parseItauPdf] página ${pIdx + 1}: ${countPg} transações`);
   }
 
   const transacoesSecaoDedup = dedupTransacoes(transacoesSecao);
-  console.log(`[parseItauPdf] seções abertas=${sectionsOpened}, transações (seção)=${transacoesSecao.length}, dedup=${transacoesSecaoDedup.length}`);
+  console.log(`[parseItauPdf] seções abertas=${sectionsOpened}, transações=${transacoesSecao.length}, dedup=${transacoesSecaoDedup.length}`);
 
-  // Modo seção é o padrão. Fallback só se modo seção retornou ZERO.
   if (transacoesSecaoDedup.length > 0) {
     const soma = transacoesSecaoDedup.reduce((s, t) => s + t.valor, 0);
-    console.log(`[parseItauPdf] usando modo seção, soma=${soma.toFixed(2)}, totalFatura=${totalFatura}`);
+    console.log(`[parseItauPdf] modo seção, soma=${soma.toFixed(2)}, totalFatura=${totalFatura}`);
     return { cartao, vencimento, fatura, totalFatura, transacoes: transacoesSecaoDedup };
   }
 
-  console.log(`[parseItauPdf] modo seção vazio — ativando fallback permissivo`);
+  console.log(`[parseItauPdf] modo seção vazio — fallback permissivo (todas as páginas)`);
   const permissivas: ParsedTransaction[] = [];
-  for (const linha of linhas) {
-    const lower = linha.toLowerCase();
-    if (lineLooksLikeSkip(lower)) continue;
-    if (/vencimento|data\s+estabelecimento|valor\s+em\s+r\$/.test(lower)) continue;
-    const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
-    if (tx) permissivas.push(tx);
+  for (const linhasPg of pageLines) {
+    for (const linha of linhasPg) {
+      const lower = linha.toLowerCase();
+      if (lineLooksLikeSkip(lower)) continue;
+      if (HARD_STOP_SECTIONS.some((k) => lower.includes(k))) continue;
+      if (/vencimento|data\s+estabelecimento|valor\s+em\s+r\$/.test(lower)) continue;
+      const tx = buildTransactionFromLine(linha, refYear, refMonth, cartao, fatura);
+      if (tx) permissivas.push(tx);
+    }
   }
   const dedup = dedupTransacoes(permissivas);
   console.log(`[parseItauPdf] fallback transações=${dedup.length}, soma=${dedup.reduce((s, t) => s + t.valor, 0).toFixed(2)}`);
