@@ -159,7 +159,7 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
     // Ordena top->bottom (Y desc), então agrupa por proximidade
     arr.sort((a, b) => b.y - a.y);
     const groups: Item[][] = [];
-    const TOL = 2;
+    const TOL = 3.5;
     for (const it of arr) {
       const g = groups[groups.length - 1];
       if (g && Math.abs(g[0].y - it.y) <= TOL) {
@@ -169,12 +169,29 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
       }
     }
 
+    // Constrói linhas e mescla quando começa com DD/MM mas não termina com valor,
+    // e a próxima é só um valor (descrição quebrada em 2 linhas)
+    const rawLines: string[] = [];
     for (const g of groups) {
       g.sort((a, b) => a.x - b.x);
       const lineText = g.map((i) => i.str).join(" ").replace(/\s+/g, " ").trim();
-      if (lineText) fullText += lineText + "\n";
+      if (lineText) rawLines.push(lineText);
     }
-    fullText += "\n";
+    const VALUE_END = /-?\d{1,3}(?:\.\d{3})*,\d{2}\s*$/;
+    const VALUE_ONLY = /^-?\d{1,3}(?:\.\d{3})*,\d{2}\s*$/;
+    const DATE_START = /^\d{2}\/\d{2}\s/;
+    const merged: string[] = [];
+    for (let i = 0; i < rawLines.length; i++) {
+      const cur = rawLines[i];
+      const next = rawLines[i + 1];
+      if (DATE_START.test(cur) && !VALUE_END.test(cur) && next && VALUE_ONLY.test(next)) {
+        merged.push(`${cur} ${next}`);
+        i++;
+      } else {
+        merged.push(cur);
+      }
+    }
+    fullText += merged.join("\n") + "\n\n";
   }
 
   console.log(`[parseItauPdf] páginas=${pdf.numPages}, linhas=${fullText.split("\n").length}`);
