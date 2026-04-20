@@ -141,14 +141,13 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  // Reconstrói texto agrupando por Y com tolerância e ordenando por X
-  let fullText = "";
+  // Reconstrói linhas POR PÁGINA agrupando por Y com tolerância e ordenando por X
+  const pageLines: string[][] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
     const items = (content.items as any[]).filter((it) => typeof it.str === "string");
 
-    // Agrupa items em "linhas" usando tolerância de Y (~2px)
     type Item = { x: number; y: number; str: string };
     const arr: Item[] = items.map((it) => ({
       x: it.transform[4],
@@ -156,7 +155,6 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
       str: it.str,
     }));
 
-    // Ordena top->bottom (Y desc), então agrupa por proximidade
     arr.sort((a, b) => b.y - a.y);
     const groups: Item[][] = [];
     const TOL = 3.5;
@@ -169,8 +167,6 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
       }
     }
 
-    // Constrói linhas e mescla quando começa com DD/MM mas não termina com valor,
-    // e a próxima é só um valor (descrição quebrada em 2 linhas)
     const rawLines: string[] = [];
     for (const g of groups) {
       g.sort((a, b) => a.x - b.x);
@@ -191,10 +187,11 @@ export async function parseItauPdf(file: File): Promise<ParsedInvoice> {
         merged.push(cur);
       }
     }
-    fullText += merged.join("\n") + "\n\n";
+    pageLines.push(merged);
   }
 
-  console.log(`[parseItauPdf] páginas=${pdf.numPages}, linhas=${fullText.split("\n").length}`);
+  const fullText = pageLines.map((ls) => ls.join("\n")).join("\n\n");
+  console.log(`[parseItauPdf] páginas=${pdf.numPages}, linhas totais=${pageLines.reduce((s, ls) => s + ls.length, 0)}`);
 
   // Cartão
   const cartaoMatch = fullText.match(/(\d{4})\.X{4}\.X{4}\.(\d{4})/i)
