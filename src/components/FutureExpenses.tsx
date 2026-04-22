@@ -1,21 +1,27 @@
 import { useMemo, useState } from "react";
 import { type Expense, useExpenses } from "@/hooks/useExpenses";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Undo2, FastForward, Sparkles } from "lucide-react";
+import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 interface VirtualExpense extends Expense {
   isVirtual?: boolean;
+  isSubscription?: boolean;
   sourceExpenseId?: string;
 }
 
+const SUBSCRIPTION_PROJECTION_MONTHS = 6;
+
 export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
+  const { data: subscriptions = [] } = useSubscriptions();
   const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
