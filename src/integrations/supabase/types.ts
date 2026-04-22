@@ -83,6 +83,54 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          banco: string | null
+          cartao: string | null
+          classificacao: string | null
+          created_at: string
+          dia_cobranca: number
+          id: string
+          justificativa: string | null
+          last_generated_month: string | null
+          nome: string
+          paused: boolean
+          updated_at: string
+          user_id: string
+          valor: number
+        }
+        Insert: {
+          banco?: string | null
+          cartao?: string | null
+          classificacao?: string | null
+          created_at?: string
+          dia_cobranca?: number
+          id?: string
+          justificativa?: string | null
+          last_generated_month?: string | null
+          nome: string
+          paused?: boolean
+          updated_at?: string
+          user_id: string
+          valor?: number
+        }
+        Update: {
+          banco?: string | null
+          cartao?: string | null
+          classificacao?: string | null
+          created_at?: string
+          dia_cobranca?: number
+          id?: string
+          justificativa?: string | null
+          last_generated_month?: string | null
+          nome?: string
+          paused?: boolean
+          updated_at?: string
+          user_id?: string
+          valor?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
