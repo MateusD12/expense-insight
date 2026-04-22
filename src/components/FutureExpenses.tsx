@@ -220,24 +220,42 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
                   className={cn(
                     "hover:bg-blue-50/50 transition-colors",
                     !!e.fatura_original && "bg-amber-50/50",
-                    e.isVirtual && "bg-slate-50/30",
+                    e.isVirtual && !e.isSubscription && "bg-slate-50/30",
+                    e.isSubscription && "bg-indigo-50/30",
                   )}
                 >
                   <TableCell className="font-bold text-sm">
                     <div className="flex items-center gap-1.5">
-                      {e.isVirtual && <Sparkles size={12} className="text-purple-400" />}
+                      {e.isSubscription ? (
+                        <Repeat size={12} className="text-indigo-500" />
+                      ) : e.isVirtual ? (
+                        <Sparkles size={12} className="text-purple-400" />
+                      ) : null}
                       {e.despesa}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-black text-blue-600">{formatCurrency(e.valor)}</TableCell>
-                  <TableCell className="text-center text-xs text-slate-400 font-bold">
-                    {e.parcela}/{e.total_parcela}
+                  <TableCell className="text-center text-xs font-bold">
+                    {e.isSubscription ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-indigo-50 text-indigo-700 border-indigo-200 font-black text-[9px]"
+                      >
+                        ASSINATURA
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-400">
+                        {e.parcela}/{e.total_parcela}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs font-bold uppercase">
                     {format(new Date(e.fatura!.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR })}
                   </TableCell>
                   <TableCell className="text-center">
-                    {e.fatura_original ? (
+                    {e.isSubscription ? (
+                      <span className="text-[10px] font-bold text-indigo-400 italic">Recorrente</span>
+                    ) : e.fatura_original ? (
                       <Button
                         variant="ghost"
                         size="sm"
