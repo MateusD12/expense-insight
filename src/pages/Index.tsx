@@ -68,7 +68,7 @@ const BADGE_COLORS: Record<string, string> = {
   Alimentação: "bg-orange-100 text-orange-800 border-orange-200",
   Compras: "bg-pink-100 text-pink-800 border-pink-200",
   Transporte: "bg-green-100 text-green-800 border-green-200",
-  Assinatura: "bg-indigo-100 text-indigo-800 border-indigo-200",
+  Assinaturas: "bg-indigo-100 text-indigo-800 border-indigo-200",
   Presente: "bg-yellow-100 text-yellow-800 border-yellow-200",
   Casa: "bg-emerald-100 text-emerald-800 border-emerald-200",
   Carro: "bg-cyan-100 text-cyan-800 border-cyan-200",
@@ -311,9 +311,7 @@ export default function Index() {
   // Generate virtual future installments from parceladas
   const virtualExpenses = useMemo(() => {
     const result: (Expense & { isVirtual?: boolean })[] = [];
-    const existingKeys = new Set(
-      normalizedExpenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`)
-    );
+    const existingKeys = new Set(normalizedExpenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`));
 
     for (const e of normalizedExpenses) {
       const totalParcelas = e.total_parcela || 0;
@@ -349,24 +347,14 @@ export default function Index() {
 
   // Combine real faturas + virtual future faturas for dropdown
   const allFaturaOptions = useMemo(() => {
-    const realFaturas = normalizedExpenses
-      .map((e) => e.fatura?.slice(0, 7))
-      .filter(Boolean) as string[];
-    const virtualFaturas = virtualExpenses
-      .map((e) => e.fatura?.slice(0, 7))
-      .filter(Boolean) as string[];
+    const realFaturas = normalizedExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
+    const virtualFaturas = virtualExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
     return [...new Set([...realFaturas, ...virtualFaturas])].sort();
   }, [normalizedExpenses, virtualExpenses]);
 
   const unique = (key: keyof Expense) => {
     if (key === "fatura") return allFaturaOptions;
-    return [
-      ...new Set(
-        normalizedExpenses
-          .map((e) => e[key])
-          .filter(Boolean) as string[],
-      ),
-    ].sort();
+    return [...new Set(normalizedExpenses.map((e) => e[key]).filter(Boolean) as string[])].sort();
   };
 
   const requestSort = (key: keyof Expense) => {
@@ -383,9 +371,7 @@ export default function Index() {
     // If user selected a specific future fatura, include virtual expenses and skip isPresente
     const isFutureFilter = filters.fatura !== "all" && filters.fatura > faturaAtual;
 
-    const pool = isFutureFilter
-      ? [...normalizedExpenses, ...virtualExpenses]
-      : normalizedExpenses;
+    const pool = isFutureFilter ? [...normalizedExpenses, ...virtualExpenses] : normalizedExpenses;
 
     let result = pool.filter((e) => {
       const faturaMes = e.fatura?.substring(0, 7);
@@ -493,9 +479,7 @@ export default function Index() {
     const nextDate = addMonths(baseDate, 1);
     const nextKey = format(nextDate, "yyyy-MM");
     const allPool = [...normalizedExpenses, ...virtualExpenses];
-    const total = allPool
-      .filter((e) => e.fatura?.slice(0, 7) === nextKey)
-      .reduce((acc, e) => acc + Number(e.valor), 0);
+    const total = allPool.filter((e) => e.fatura?.slice(0, 7) === nextKey).reduce((acc, e) => acc + Number(e.valor), 0);
     return {
       label: format(nextDate, "MMM/yy", { locale: ptBR }),
       total,
@@ -521,9 +505,16 @@ export default function Index() {
       const currentMonth = format(now, "yyyy-MM");
       let monthsBack = 6;
       let monthsForward = 12;
-      if (chartPeriod === "3m") { monthsBack = 3; monthsForward = 6; }
-      else if (chartPeriod === "6m") { monthsBack = 6; monthsForward = 12; }
-      else if (chartPeriod === "1y") { monthsBack = 12; monthsForward = 12; }
+      if (chartPeriod === "3m") {
+        monthsBack = 3;
+        monthsForward = 6;
+      } else if (chartPeriod === "6m") {
+        monthsBack = 6;
+        monthsForward = 12;
+      } else if (chartPeriod === "1y") {
+        monthsBack = 12;
+        monthsForward = 12;
+      }
 
       const startDate = addMonths(now, -monthsBack);
       const endDate = addMonths(now, monthsForward);
@@ -669,7 +660,11 @@ export default function Index() {
                 disabled={parsingPdf}
                 className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-wait"
               />
-              <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4" disabled={parsingPdf}>
+              <Button
+                variant="outline"
+                className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4"
+                disabled={parsingPdf}
+              >
                 <FileText size={18} className="sm:mr-2" />
                 <span className="hidden sm:inline">{parsingPdf ? "Lendo..." : "Fatura PDF"}</span>
               </Button>

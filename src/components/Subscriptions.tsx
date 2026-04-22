@@ -4,13 +4,7 @@ import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +22,7 @@ import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
-const formatCurrency = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 interface Props {
   userId: string;
@@ -42,7 +35,7 @@ const emptyForm = {
   dia_cobranca: 1,
   banco: "",
   cartao: "",
-  classificacao: "Assinatura",
+  classificacao: "Assinaturas",
   justificativa: "",
 };
 
@@ -115,7 +108,10 @@ export function Subscriptions({ userId, expenses }: Props) {
   // Sugestões: despesas com classificação Assinatura/Assinaturas que ainda não foram cadastradas como subscription.
   const suggestions = useMemo(() => {
     const subNames = new Set(subs.map((s) => s.nome.toLowerCase().trim()));
-    const groups = new Map<string, { despesa: string; valor: number; dia: number; banco: string; cartao: string; justificativa: string | null }>();
+    const groups = new Map<
+      string,
+      { despesa: string; valor: number; dia: number; banco: string; cartao: string; justificativa: string | null }
+    >();
     for (const e of expenses) {
       const cls = (e.classificacao || "").toLowerCase();
       if (cls !== "assinatura" && cls !== "assinaturas") continue;
@@ -137,7 +133,7 @@ export function Subscriptions({ userId, expenses }: Props) {
     return Array.from(groups.values());
   }, [expenses, subs]);
 
-  const importSuggestion = (s: typeof suggestions[number]) => {
+  const importSuggestion = (s: (typeof suggestions)[number]) => {
     addSubscription.mutate(
       {
         nome: s.despesa,
@@ -145,7 +141,7 @@ export function Subscriptions({ userId, expenses }: Props) {
         dia_cobranca: s.dia,
         banco: s.banco || null,
         cartao: s.cartao || null,
-        classificacao: "Assinatura",
+        classificacao: "Assinaturas",
         justificativa: s.justificativa,
         paused: false,
         last_generated_month: null,
@@ -214,8 +210,8 @@ export function Subscriptions({ userId, expenses }: Props) {
     <div className="space-y-4">
       {/* Nota informativa */}
       <div className="bg-amber-50/60 border border-amber-200 text-amber-900 rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed">
-        ℹ️ Algumas faturas trazem mais de uma cobrança da mesma assinatura no mês (ex: cobrança retroativa).
-        A tabela do Dashboard mostra todos os lançamentos reais; aqui você vê apenas o cadastro recorrente.
+        ℹ️ Algumas faturas trazem mais de uma cobrança da mesma assinatura no mês (ex: cobrança retroativa). A tabela do
+        Dashboard mostra todos os lançamentos reais; aqui você vê apenas o cadastro recorrente.
       </div>
 
       {/* Resumo + ações */}
@@ -290,19 +286,23 @@ export function Subscriptions({ userId, expenses }: Props) {
                   <TableCell className="text-right font-black text-indigo-600">
                     {formatCurrency(Number(s.valor))}
                   </TableCell>
-                  <TableCell className="text-center text-xs font-bold text-slate-500">
-                    Dia {s.dia_cobranca}
-                  </TableCell>
+                  <TableCell className="text-center text-xs font-bold text-slate-500">Dia {s.dia_cobranca}</TableCell>
                   <TableCell className="text-xs font-bold text-slate-500">
                     {[s.banco, s.cartao].filter(Boolean).join(" ••") || "-"}
                   </TableCell>
                   <TableCell className="text-center">
                     {s.paused ? (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-black text-[9px]">
+                      <Badge
+                        variant="outline"
+                        className="bg-amber-50 text-amber-700 border-amber-200 font-black text-[9px]"
+                      >
                         PAUSADA
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-black text-[9px]">
+                      <Badge
+                        variant="outline"
+                        className="bg-emerald-50 text-emerald-700 border-emerald-200 font-black text-[9px]"
+                      >
                         ATIVA
                       </Badge>
                     )}
@@ -318,12 +318,7 @@ export function Subscriptions({ userId, expenses }: Props) {
                       >
                         {s.paused ? <Play size={14} /> : <Pause size={14} />}
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-blue-500"
-                        onClick={() => openEdit(s)}
-                      >
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-500" onClick={() => openEdit(s)}>
                         <Pencil size={14} />
                       </Button>
                       <Button

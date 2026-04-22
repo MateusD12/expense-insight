@@ -29,9 +29,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
   const futureExpenses = useMemo<VirtualExpense[]>(() => {
     const result: VirtualExpense[] = [];
     // Set of existing real expense keys to avoid duplicates: "sourceId_parcela"
-    const existingKeys = new Set(
-      expenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`)
-    );
+    const existingKeys = new Set(expenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`));
 
     for (const e of expenses) {
       const totalParcelas = e.total_parcela || 0;
@@ -48,7 +46,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
       for (let i = 1; i <= remainingCount; i++) {
         const futureParcela = currentParcela + i;
         const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
-        
+
         // Skip if a real record already exists for this installment
         if (existingKeys.has(key)) continue;
 
@@ -91,8 +89,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
         // Skip if a real expense for this subscription already exists in this month
         const exists = expenses.some(
           (e) =>
-            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
-            e.data?.substring(0, 7) === monthKey,
+            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() && e.data?.substring(0, 7) === monthKey,
         );
         if (exists) continue;
 
@@ -241,7 +238,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
                         variant="outline"
                         className="bg-indigo-50 text-indigo-700 border-indigo-200 font-black text-[9px]"
                       >
-                        ASSINATURA
+                        ASSINATURAS
                       </Badge>
                     ) : (
                       <span className="text-slate-400">

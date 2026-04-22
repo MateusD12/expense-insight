@@ -7,7 +7,7 @@ CREATE TABLE public.subscriptions (
   dia_cobranca INTEGER NOT NULL DEFAULT 1 CHECK (dia_cobranca BETWEEN 1 AND 31),
   banco TEXT,
   cartao TEXT,
-  classificacao TEXT DEFAULT 'Assinatura',
+  classificacao TEXT DEFAULT 'Assinaturas',
   justificativa TEXT,
   paused BOOLEAN NOT NULL DEFAULT FALSE,
   last_generated_month TEXT,

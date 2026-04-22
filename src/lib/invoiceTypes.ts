@@ -19,8 +19,18 @@ export interface ParsedInvoice {
 }
 
 export const MESES_PT: Record<string, number> = {
-  jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
-  jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+  jan: 1,
+  fev: 2,
+  mar: 3,
+  abr: 4,
+  mai: 5,
+  jun: 6,
+  jul: 7,
+  ago: 8,
+  set: 9,
+  out: 10,
+  nov: 11,
+  dez: 12,
 };
 
 export function parseValorBR(s: string): number {
@@ -35,7 +45,7 @@ export function inferClassificacaoFromName(name: string): string {
   if (/(uber|99|cabify|posto|combust|gasolin|estacion)/.test(l)) return "Transporte";
   if (/(farma|drogaria|hospital|clinic|saude|saúde|odonto)/.test(l)) return "Saúde";
   if (/(escola|curso|udemy|alura|coursera|faculdade|livraria)/.test(l)) return "Estudos";
-  if (/(netflix|spotify|prime|disney|hbo|youtube|apple\.com|google)/.test(l)) return "Assinatura";
+  if (/(netflix|spotify|prime|disney|hbo|youtube|apple\.com|google)/.test(l)) return "Assinaturas";
   if (/(cinema|park|game|steam|playstation|xbox|lazer)/.test(l)) return "Lazer";
   if (/(magalu|amazon|mercado livre|shopee|aliexpress|loja|store|shop)/.test(l)) return "Compras";
   if (/(constru|pisos|tinta|material|casa|decor|leroy)/.test(l)) return "Casa";
