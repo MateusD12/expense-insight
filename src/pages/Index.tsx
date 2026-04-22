@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { FutureExpenses } from "@/components/FutureExpenses";
+import { Subscriptions } from "@/components/Subscriptions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -852,6 +853,12 @@ export default function Index() {
               className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-amber-50 data-[state=active]:text-amber-700 transition-colors"
             >
               Futuras
+            </TabsTrigger>
+            <TabsTrigger
+              value="assinaturas"
+              className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-indigo-50 data-[state=active]:text-indigo-700 transition-colors"
+            >
+              Assinaturas
             </TabsTrigger>
           </TabsList>
 
