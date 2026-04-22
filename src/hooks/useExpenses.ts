@@ -69,8 +69,10 @@ export function useExpenses() {
 
   const advanceInstallment = useMutation({
     mutationFn: async ({ id, currentFatura }: { id: string; currentFatura: string }) => {
+      // "Fatura atual" no app é a próxima do mês corrente (ex: estamos em abril → fatura mai/26)
       const now = new Date();
-      const currentMonthFatura = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+      const target = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const currentMonthFatura = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-01`;
       const { error } = await supabase
         .from("expenses")
         .update({ fatura: currentMonthFatura, fatura_original: currentFatura } as any)

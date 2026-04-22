@@ -93,8 +93,10 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
     const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
     if (!source) return;
 
+    // "Fatura atual" no app é a próxima do mês corrente
     const now = new Date();
-    const currentMonthFatura = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const target = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const currentMonthFatura = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-01`;
 
     addExpense.mutate({
       banco: source.banco,
