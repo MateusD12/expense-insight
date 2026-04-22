@@ -74,8 +74,54 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
       }
     }
 
+    // Project active (non-paused) subscriptions for the next N months
+    const today = new Date();
+    const currentMonthKey = format(today, "yyyy-MM");
+    for (const sub of subscriptions) {
+      if (sub.paused) continue;
+      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
+
+      for (let i = 0; i < SUBSCRIPTION_PROJECTION_MONTHS; i++) {
+        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
+        const monthKey = format(dataDate, "yyyy-MM");
+
+        // Skip current month if already auto-generated
+        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
+
+        // Skip if a real expense for this subscription already exists in this month
+        const exists = expenses.some(
+          (e) =>
+            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
+            e.data?.substring(0, 7) === monthKey,
+        );
+        if (exists) continue;
+
+        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
+        const faturaDate = addMonths(dataDate, 1);
+        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+        result.push({
+          id: `sub_${sub.id}_${monthKey}`,
+          banco: sub.banco || "",
+          cartao: sub.cartao || "",
+          valor: Number(sub.valor),
+          data: dataStr,
+          parcela: 1,
+          total_parcela: 1,
+          despesa: sub.nome,
+          justificativa: sub.justificativa,
+          classificacao: sub.classificacao || "Assinatura",
+          fatura: faturaStr,
+          fatura_original: null,
+          created_at: "",
+          isVirtual: true,
+          isSubscription: true,
+        });
+      }
+    }
+
     return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
-  }, [expenses]);
+  }, [expenses, subscriptions]);
 
   const uniqueFaturas = useMemo(
     () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
