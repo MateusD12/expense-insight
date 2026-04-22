@@ -1,104 +1,52 @@
 
 
-## Problema identificado
+## Problemas
 
-O parser do Itaú já percorre `pdf.numPages`, então ele não está ignorando a segunda página por falta de loop. O problema mais provável é outro: ele junta o texto de todas as páginas em `fullText` e depois aplica um `hardStopped = true` global quando encontra `"próximas faturas"` ou `"parcelas a vencer"`. Se esse bloco aparece no fim da página 1, o parser para de considerar tudo que vem depois — inclusive as transações reais da página 2.
+1. **Tabela mostra mais valores que Assinaturas**: o PDF do Itaú trouxe **2 cobranças** de algumas assinaturas no mesmo mês (ex: Totalpassao em 30/03 e 28/04, lovablelovable em 28/03 e 28/04). Não é bug — são cobranças reais que vieram na fatura mai/26. A página Assinaturas mostra só 1 entrada por nome (correto). A diferença é esperada, mas confunde.
 
-Isso bate com o sintoma atual: importar só ~35 despesas, como se estivesse lendo só a primeira página.
+2. **Próximas faturas não mostram assinaturas ativas**: hoje `FutureExpenses` só projeta parcelas de compras parceladas. Assinaturas não-pausadas precisam aparecer como linhas virtuais nos meses futuros.
 
-## O que será corrigido
+## O que será feito
 
-### 1) Ajustar o parser para tratar cada página separadamente
-Arquivo: `src/lib/parseItauPdf.ts`
+### 1) Projetar assinaturas em `FutureExpenses.tsx`
 
-- Parar de depender de um único `fullText.split("\n")` para parsear transações.
-- Processar as linhas por página, preservando:
-  - `pageNumber`
-  - `lines[]` daquela página
-- Aplicar abertura/fechamento de seção por página, sem deixar um `hardStopped` de uma página bloquear as próximas.
+- Importar `useSubscriptions`.
+- Para cada assinatura **não pausada**, gerar **N linhas virtuais** (ex: próximos 6 meses) com:
+  - `despesa` = `subscription.nome`
+  - `valor` = `subscription.valor`
+  - `data` = `YYYY-MM-DD` usando `dia_cobranca`
+  - `fatura` = mês seguinte ao `data` (regra do app: compra do mês X cai na fatura X+1)
+  - `classificacao` = "Assinatura"
+  - flag visual `isSubscription: true` (ícone Repeat roxo, badge "ASSINATURA")
+- **Dedup**: se já existe despesa real com mesmo `nome` + mesmo mês de `data`, não gerar virtual daquele mês (evita duplicar com lançamento real já presente).
+- Pular geração para o **mês corrente** se `last_generated_month` já marcou (a auto-geração de `Subscriptions.tsx` cuida disso).
+- Assinaturas pausadas → não aparecem.
 
-### 2) Trocar o “hard stop global” por fechamento local de bloco
-Hoje:
-- `"próximas faturas"` / `"parcelas a vencer"` desligam o parser para sempre.
+### 2) Linha virtual de assinatura — ações
 
-Novo comportamento:
-- essas labels fecham a captura da seção atual naquela região;
-- na página seguinte, se aparecer novo cabeçalho válido (`"lançamentos"`, `"compras nacionais"`, etc.), a captura pode reabrir normalmente.
+- Sem botão "Adiantar" (não faz sentido para assinatura recorrente).
+- Mostrar badge "ASSINATURA" no lugar de Parcela.
+- Tooltip/legenda: "Projeção da assinatura ativa".
 
-Isso evita perder a continuação da fatura em PDFs com 2 páginas.
+### 3) Esclarecer duplicação na tabela (sem mexer em dado)
 
-### 3) Melhorar a lógica de reabertura entre páginas
-- Ao finalizar cada página, o parser não deve assumir que a leitura acabou.
-- Na página seguinte:
-  - se houver seção de lançamentos, reabre;
-  - se houver transações válidas logo no começo com o mesmo padrão `DD/MM ... valor`, também pode entrar em modo de captura defensivo.
+- Adicionar pequena nota informativa no topo da página **Assinaturas**:
+  > "Algumas faturas trazem mais de uma cobrança da mesma assinatura no mês (ex: cobrança retroativa). A tabela do Dashboard mostra todos os lançamentos reais; aqui você vê apenas o cadastro recorrente."
+- Sem alterar dedup nem deletar lançamentos.
 
-Isso cobre layouts em que a segunda página continua a tabela sem repetir exatamente o mesmo cabeçalho.
+### 4) Validação visual rápida
 
-### 4) Manter a exclusão de “próximas faturas” sem cortar despesas válidas
-- Continuar ignorando parcelas futuras e blocos de resumo.
-- Mas fazer isso com escopo local de bloco/página, não como trava permanente do documento inteiro.
+- Confirmar nos logs que assinaturas projetadas aparecem em jun/26, jul/26… na aba **Futuras**.
+- Confirmar que assinatura **pausada** (lovablelovable.devus na imagem) **não aparece** nas próximas.
 
-### 5) Adicionar diagnóstico mais claro no console
-Arquivo: `src/lib/parseItauPdf.ts`
+## Arquivos
 
-Adicionar logs como:
-- páginas detectadas
-- quantidade de linhas por página
-- quantas transações foram extraídas por página
-- em qual página a seção abriu/fechou
-- quantas transações finais vieram do documento
+- `src/components/FutureExpenses.tsx` — adicionar projeção de assinaturas + flag visual.
+- `src/components/Subscriptions.tsx` — adicionar nota informativa no topo.
 
-Exemplo de objetivo:
-```text
-[parseItauPdf] página 1: 35 transações
-[parseItauPdf] página 2: 28 transações
-[parseItauPdf] total final: 63 transações
-```
+## Fora de escopo
 
-Isso facilita validar rapidamente se a segunda página voltou a ser lida.
-
-## Ajuste pequeno na tela de revisão
-Arquivo: `src/components/InvoiceImport.tsx`
-
-Sem mudar a estrutura principal, vou alinhar a UI ao novo volume importado:
-- manter a separação entre pendentes e classificadas;
-- manter busca e filtros por valor/status;
-- garantir que o contador inferior reflita corretamente o total vindo do parser corrigido.
-
-## Resultado esperado
-
-Depois da correção:
-- a importação deve trazer as duas páginas da fatura;
-- o total de despesas deve subir de ~35 para algo próximo de 60+;
-- a soma selecionada deve ficar coerente com a fatura real;
-- “próximas faturas” continuará fora da importação, sem matar a leitura da página seguinte.
-
-## Detalhes técnicos
-
-Arquivos envolvidos:
-- `src/lib/parseItauPdf.ts`
-- possível ajuste leve em `src/components/InvoiceImport.tsx`
-
-Mudança principal no parser:
-```text
-ANTES
-PDF inteiro -> fullText -> split("\n") -> hard stop global
-
-DEPOIS
-Página 1 -> linhas -> parse local
-Página 2 -> linhas -> parse local
-...
-Combina transações de todas as páginas -> dedup final
-```
-
-Critérios preservados:
-- deduplicação normalizada por data + estabelecimento + valor
-- total da fatura via regex priorizado
-- regex estrita para transações com valor no fim da linha
-
-Fora de escopo:
-- OCR/Vision API
-- mudanças no schema
-- mudanças no parser Nubank
+- Alterar parser do PDF.
+- Apagar/agrupar cobranças duplicadas reais.
+- Mudança de schema.
 
