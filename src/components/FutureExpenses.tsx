@@ -1,21 +1,27 @@
 import { useMemo, useState } from "react";
 import { type Expense, useExpenses } from "@/hooks/useExpenses";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Undo2, FastForward, Sparkles } from "lucide-react";
+import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 interface VirtualExpense extends Expense {
   isVirtual?: boolean;
+  isSubscription?: boolean;
   sourceExpenseId?: string;
 }
 
+const SUBSCRIPTION_PROJECTION_MONTHS = 6;
+
 export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
+  const { data: subscriptions = [] } = useSubscriptions();
   const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
@@ -68,8 +74,54 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
       }
     }
 
+    // Project active (non-paused) subscriptions for the next N months
+    const today = new Date();
+    const currentMonthKey = format(today, "yyyy-MM");
+    for (const sub of subscriptions) {
+      if (sub.paused) continue;
+      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
+
+      for (let i = 0; i < SUBSCRIPTION_PROJECTION_MONTHS; i++) {
+        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
+        const monthKey = format(dataDate, "yyyy-MM");
+
+        // Skip current month if already auto-generated
+        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
+
+        // Skip if a real expense for this subscription already exists in this month
+        const exists = expenses.some(
+          (e) =>
+            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
+            e.data?.substring(0, 7) === monthKey,
+        );
+        if (exists) continue;
+
+        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
+        const faturaDate = addMonths(dataDate, 1);
+        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+
+        result.push({
+          id: `sub_${sub.id}_${monthKey}`,
+          banco: sub.banco || "",
+          cartao: sub.cartao || "",
+          valor: Number(sub.valor),
+          data: dataStr,
+          parcela: 1,
+          total_parcela: 1,
+          despesa: sub.nome,
+          justificativa: sub.justificativa,
+          classificacao: sub.classificacao || "Assinatura",
+          fatura: faturaStr,
+          fatura_original: null,
+          created_at: "",
+          isVirtual: true,
+          isSubscription: true,
+        });
+      }
+    }
+
     return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
-  }, [expenses]);
+  }, [expenses, subscriptions]);
 
   const uniqueFaturas = useMemo(
     () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
@@ -168,24 +220,42 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
                   className={cn(
                     "hover:bg-blue-50/50 transition-colors",
                     !!e.fatura_original && "bg-amber-50/50",
-                    e.isVirtual && "bg-slate-50/30",
+                    e.isVirtual && !e.isSubscription && "bg-slate-50/30",
+                    e.isSubscription && "bg-indigo-50/30",
                   )}
                 >
                   <TableCell className="font-bold text-sm">
                     <div className="flex items-center gap-1.5">
-                      {e.isVirtual && <Sparkles size={12} className="text-purple-400" />}
+                      {e.isSubscription ? (
+                        <Repeat size={12} className="text-indigo-500" />
+                      ) : e.isVirtual ? (
+                        <Sparkles size={12} className="text-purple-400" />
+                      ) : null}
                       {e.despesa}
                     </div>
                   </TableCell>
                   <TableCell className="text-right font-black text-blue-600">{formatCurrency(e.valor)}</TableCell>
-                  <TableCell className="text-center text-xs text-slate-400 font-bold">
-                    {e.parcela}/{e.total_parcela}
+                  <TableCell className="text-center text-xs font-bold">
+                    {e.isSubscription ? (
+                      <Badge
+                        variant="outline"
+                        className="bg-indigo-50 text-indigo-700 border-indigo-200 font-black text-[9px]"
+                      >
+                        ASSINATURA
+                      </Badge>
+                    ) : (
+                      <span className="text-slate-400">
+                        {e.parcela}/{e.total_parcela}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs font-bold uppercase">
                     {format(new Date(e.fatura!.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR })}
                   </TableCell>
                   <TableCell className="text-center">
-                    {e.fatura_original ? (
+                    {e.isSubscription ? (
+                      <span className="text-[10px] font-bold text-indigo-400 italic">Recorrente</span>
+                    ) : e.fatura_original ? (
                       <Button
                         variant="ghost"
                         size="sm"

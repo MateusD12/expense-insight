@@ -212,6 +212,12 @@ export function Subscriptions({ userId, expenses }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Nota informativa */}
+      <div className="bg-amber-50/60 border border-amber-200 text-amber-900 rounded-2xl px-4 py-3 text-xs font-bold leading-relaxed">
+        ℹ️ Algumas faturas trazem mais de uma cobrança da mesma assinatura no mês (ex: cobrança retroativa).
+        A tabela do Dashboard mostra todos os lançamentos reais; aqui você vê apenas o cadastro recorrente.
+      </div>
+
       {/* Resumo + ações */}
       <div className="bg-white p-4 rounded-2xl shadow-sm border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
