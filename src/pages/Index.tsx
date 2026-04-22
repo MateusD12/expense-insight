@@ -1178,6 +1178,10 @@ export default function Index() {
           <TabsContent value="futuras">
             <FutureExpenses expenses={normalizedExpenses} />
           </TabsContent>
+
+          <TabsContent value="assinaturas">
+            <Subscriptions userId={session?.user?.id || ""} expenses={normalizedExpenses} />
+          </TabsContent>
         </Tabs>
       </div>
 
