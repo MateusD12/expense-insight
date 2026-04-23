@@ -28,7 +28,7 @@ import {
   Pencil,
   Trash2,
   Upload,
-  FileText,
+  
   LogOut,
   Chrome,
   Wallet,
