@@ -19,10 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { InvoiceImport } from "@/components/InvoiceImport";
 import { InvoiceCutoffs } from "@/components/InvoiceCutoffs";
-import { parseInvoicePdf } from "@/lib/parseInvoicePdf";
-import type { ParsedInvoice } from "@/lib/invoiceTypes";
 import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
 import { effectiveFatura, getFaturaAtual } from "@/lib/faturaResolver";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -138,10 +135,6 @@ export default function Index() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<any[]>([]);
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [parsedInvoice, setParsedInvoice] = useState<ParsedInvoice | null>(null);
-  const [parsedBanco, setParsedBanco] = useState<string>("Itaú");
-  const [showInvoiceDialog, setShowInvoiceDialog] = useState(false);
-  const [parsingPdf, setParsingPdf] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -243,27 +236,6 @@ export default function Index() {
     event.target.value = "";
   };
 
-  const handlePdfUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setParsingPdf(true);
-    try {
-      const { banco, invoice } = await parseInvoicePdf(file);
-      if (invoice.transacoes.length === 0) {
-        toast.error("Nenhuma transação encontrada no PDF.");
-        return;
-      }
-      setParsedBanco(banco);
-      setParsedInvoice(invoice);
-      setShowInvoiceDialog(true);
-      toast.success(`Fatura ${banco} detectada: ${invoice.transacoes.length} transação(ões).`);
-    } catch (err: any) {
-      toast.error(err.message || "Erro ao ler o PDF.");
-    } finally {
-      setParsingPdf(false);
-    }
-  };
 
   const confirmImport = async () => {
     if (!session?.user?.id) return;
@@ -658,23 +630,6 @@ export default function Index() {
               <Button variant="outline" className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4">
                 <Upload size={18} className="sm:mr-2" />
                 <span className="hidden sm:inline">CSV</span>
-              </Button>
-            </div>
-            <div className="relative hover:opacity-90 transition-opacity">
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handlePdfUpload}
-                disabled={parsingPdf}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full disabled:cursor-wait"
-              />
-              <Button
-                variant="outline"
-                className="bg-white/10 border-white/20 text-white font-bold h-10 px-2 sm:px-4"
-                disabled={parsingPdf}
-              >
-                <FileText size={18} className="sm:mr-2" />
-                <span className="hidden sm:inline">{parsingPdf ? "Lendo..." : "Fatura PDF"}</span>
               </Button>
             </div>
             <Button
@@ -1323,17 +1278,6 @@ export default function Index() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <InvoiceImport
-        open={showInvoiceDialog}
-        onOpenChange={setShowInvoiceDialog}
-        invoice={parsedInvoice}
-        allExpenses={normalizedExpenses}
-        banco={parsedBanco}
-        userId={session?.user?.id || ""}
-        onImport={async (payloads) => {
-          await bulkAddExpenses.mutateAsync(payloads);
-        }}
-      />
     </div>
   );
 }
