@@ -325,12 +325,41 @@ export default function Index() {
     return result;
   }, [normalizedExpenses]);
 
+  // Virtual subscription expenses for the next 12 months,
+  // skipping months where a real expense for that subscription already exists.
+  const { data: subscriptions = [] } = useSubscriptions();
+  const subscriptionVirtuals = useMemo(() => {
+    const result: { fatura: string; valor: number }[] = [];
+    const today = new Date();
+    const currentMonthKey = format(today, "yyyy-MM");
+    for (const sub of subscriptions) {
+      if (sub.paused) continue;
+      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
+      for (let i = 0; i < 12; i++) {
+        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
+        const monthKey = format(dataDate, "yyyy-MM");
+        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
+        const exists = normalizedExpenses.some(
+          (e) =>
+            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
+            e.data?.substring(0, 7) === monthKey,
+        );
+        if (exists) continue;
+        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
+        const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
+        if (fatura) result.push({ fatura, valor: Number(sub.valor) });
+      }
+    }
+    return result;
+  }, [subscriptions, normalizedExpenses, cutoffs]);
+
   // Combine real faturas + virtual future faturas for dropdown
   const allFaturaOptions = useMemo(() => {
     const realFaturas = normalizedExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
     const virtualFaturas = virtualExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
-    return [...new Set([...realFaturas, ...virtualFaturas])].sort();
-  }, [normalizedExpenses, virtualExpenses]);
+    const subFaturas = subscriptionVirtuals.map((s) => s.fatura.slice(0, 7));
+    return [...new Set([...realFaturas, ...virtualFaturas, ...subFaturas])].sort();
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
   const unique = (key: keyof Expense) => {
     if (key === "fatura") return allFaturaOptions;
