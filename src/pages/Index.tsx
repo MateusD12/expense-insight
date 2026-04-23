@@ -545,7 +545,7 @@ export default function Index() {
       name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
       valor,
     }));
-  }, [normalizedExpenses, virtualExpenses, chartPeriod]);
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, chartPeriod]);
 
   const handleBankClick = (data: any) => {
     const bankName = data.name.split(" ••")[0];
