@@ -9,6 +9,7 @@ import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveFatura, type InvoiceCutoff } from "@/lib/faturaResolver";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -20,7 +21,7 @@ interface VirtualExpense extends Expense {
 
 const SUBSCRIPTION_PROJECTION_MONTHS = 6;
 
-export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
+export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
   const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
