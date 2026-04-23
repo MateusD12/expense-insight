@@ -303,12 +303,18 @@ export default function Index() {
   };
 
   const normalizedExpenses = useMemo(() => {
-    return allExpenses.map((e) => ({
-      ...e,
-      parcela: e.parcela && e.parcela > 0 ? e.parcela : 1,
-      total_parcela: e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1,
-    }));
-  }, [allExpenses]);
+    return allExpenses.map((e) => {
+      const parcela = e.parcela && e.parcela > 0 ? e.parcela : 1;
+      const total_parcela = e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1;
+      const eff = effectiveFatura({ ...e, parcela, total_parcela }, cutoffs);
+      return {
+        ...e,
+        parcela,
+        total_parcela,
+        fatura: eff,
+      };
+    });
+  }, [allExpenses, cutoffs]);
 
   // Generate virtual future installments from parceladas
   const virtualExpenses = useMemo(() => {
