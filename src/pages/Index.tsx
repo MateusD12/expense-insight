@@ -237,35 +237,6 @@ export default function Index() {
     reader.readAsText(file);
     event.target.value = "";
   };
-  // Virtual subscription expenses projected for the next 12 months,
-  // skipping months that already have a real expense for that subscription.
-  const { data: subscriptions = [] } = useSubscriptions();
-  const subscriptionVirtuals = useMemo(() => {
-    const result: { fatura: string; valor: number }[] = [];
-    const today = new Date();
-    const currentMonthKey = format(today, "yyyy-MM");
-    for (const sub of subscriptions) {
-      if (sub.paused) continue;
-      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
-      for (let i = 0; i < 12; i++) {
-        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
-        const monthKey = format(dataDate, "yyyy-MM");
-        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
-        const exists = normalizedExpenses.some(
-          (e) =>
-            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
-            e.data?.substring(0, 7) === monthKey,
-        );
-        if (exists) continue;
-        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
-        const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
-        if (fatura) result.push({ fatura, valor: Number(sub.valor) });
-      }
-    }
-    return result;
-  }, [subscriptions, normalizedExpenses, cutoffs]);
-
-
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
