@@ -118,7 +118,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
     }
 
     return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
-  }, [expenses, subscriptions]);
+  }, [expenses, subscriptions, cutoffs]);
 
   const uniqueFaturas = useMemo(
     () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
