@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { resolveFatura } from "@/lib/faturaResolver";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { FutureExpenses } from "@/components/FutureExpenses";
 import { Subscriptions } from "@/components/Subscriptions";
