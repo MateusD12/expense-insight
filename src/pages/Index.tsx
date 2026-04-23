@@ -488,12 +488,17 @@ export default function Index() {
     const nextDate = addMonths(baseDate, 1);
     const nextKey = format(nextDate, "yyyy-MM");
     const allPool = [...normalizedExpenses, ...virtualExpenses];
-    const total = allPool.filter((e) => e.fatura?.slice(0, 7) === nextKey).reduce((acc, e) => acc + Number(e.valor), 0);
+    const expensesTotal = allPool
+      .filter((e) => e.fatura?.slice(0, 7) === nextKey)
+      .reduce((acc, e) => acc + Number(e.valor), 0);
+    const subsTotal = subscriptionVirtuals
+      .filter((s) => s.fatura.slice(0, 7) === nextKey)
+      .reduce((acc, s) => acc + s.valor, 0);
     return {
       label: format(nextDate, "MMM/yy", { locale: ptBR }),
-      total,
+      total: expensesTotal + subsTotal,
     };
-  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses]);
+  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
   // Chart temporal data: independent of dashboard filters
   const chartTemporalData = useMemo(() => {
