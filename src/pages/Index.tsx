@@ -1,6 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
+import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { resolveFatura } from "@/lib/faturaResolver";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { FutureExpenses } from "@/components/FutureExpenses";
 import { Subscriptions } from "@/components/Subscriptions";
@@ -235,8 +237,6 @@ export default function Index() {
     reader.readAsText(file);
     event.target.value = "";
   };
-
-
   const confirmImport = async () => {
     if (!session?.user?.id) return;
     try {
@@ -325,12 +325,41 @@ export default function Index() {
     return result;
   }, [normalizedExpenses]);
 
+  // Virtual subscription expenses for the next 12 months,
+  // skipping months where a real expense for that subscription already exists.
+  const { data: subscriptions = [] } = useSubscriptions();
+  const subscriptionVirtuals = useMemo(() => {
+    const result: { fatura: string; valor: number }[] = [];
+    const today = new Date();
+    const currentMonthKey = format(today, "yyyy-MM");
+    for (const sub of subscriptions) {
+      if (sub.paused) continue;
+      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
+      for (let i = 0; i < 12; i++) {
+        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
+        const monthKey = format(dataDate, "yyyy-MM");
+        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
+        const exists = normalizedExpenses.some(
+          (e) =>
+            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
+            e.data?.substring(0, 7) === monthKey,
+        );
+        if (exists) continue;
+        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
+        const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
+        if (fatura) result.push({ fatura, valor: Number(sub.valor) });
+      }
+    }
+    return result;
+  }, [subscriptions, normalizedExpenses, cutoffs]);
+
   // Combine real faturas + virtual future faturas for dropdown
   const allFaturaOptions = useMemo(() => {
     const realFaturas = normalizedExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
     const virtualFaturas = virtualExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
-    return [...new Set([...realFaturas, ...virtualFaturas])].sort();
-  }, [normalizedExpenses, virtualExpenses]);
+    const subFaturas = subscriptionVirtuals.map((s) => s.fatura.slice(0, 7));
+    return [...new Set([...realFaturas, ...virtualFaturas, ...subFaturas])].sort();
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
   const unique = (key: keyof Expense) => {
     if (key === "fatura") return allFaturaOptions;
@@ -459,12 +488,17 @@ export default function Index() {
     const nextDate = addMonths(baseDate, 1);
     const nextKey = format(nextDate, "yyyy-MM");
     const allPool = [...normalizedExpenses, ...virtualExpenses];
-    const total = allPool.filter((e) => e.fatura?.slice(0, 7) === nextKey).reduce((acc, e) => acc + Number(e.valor), 0);
+    const expensesTotal = allPool
+      .filter((e) => e.fatura?.slice(0, 7) === nextKey)
+      .reduce((acc, e) => acc + Number(e.valor), 0);
+    const subsTotal = subscriptionVirtuals
+      .filter((s) => s.fatura.slice(0, 7) === nextKey)
+      .reduce((acc, s) => acc + s.valor, 0);
     return {
       label: format(nextDate, "MMM/yy", { locale: ptBR }),
-      total,
+      total: expensesTotal + subsTotal,
     };
-  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses]);
+  }, [filters.fatura, faturaFoco, normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
   // Chart temporal data: independent of dashboard filters
   const chartTemporalData = useMemo(() => {
@@ -475,6 +509,10 @@ export default function Index() {
         const f = e.fatura.slice(0, 7);
         temporal[f] = (temporal[f] || 0) + Number(e.valor);
       }
+    });
+    subscriptionVirtuals.forEach((s) => {
+      const f = s.fatura.slice(0, 7);
+      temporal[f] = (temporal[f] || 0) + s.valor;
     });
 
     let entries = Object.entries(temporal).sort();
@@ -507,7 +545,7 @@ export default function Index() {
       name: format(new Date(f + "-01T12:00:00"), "MMM/yy", { locale: ptBR }),
       valor,
     }));
-  }, [normalizedExpenses, virtualExpenses, chartPeriod]);
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, chartPeriod]);
 
   const handleBankClick = (data: any) => {
     const bankName = data.name.split(" ••")[0];
