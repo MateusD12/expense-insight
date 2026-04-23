@@ -20,8 +20,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { InvoiceImport } from "@/components/InvoiceImport";
+import { InvoiceCutoffs } from "@/components/InvoiceCutoffs";
 import { parseInvoicePdf } from "@/lib/parseInvoicePdf";
 import type { ParsedInvoice } from "@/lib/invoiceTypes";
+import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
+import { effectiveFatura, getFaturaAtual } from "@/lib/faturaResolver";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus,
@@ -107,10 +110,9 @@ export default function Index() {
     deleteExpense,
   } = useExpenses();
 
-  const faturaFoco = useMemo(() => {
-    const now = new Date();
-    return format(addMonths(now, 1), "yyyy-MM");
-  }, []);
+  const { data: cutoffs = [] } = useInvoiceCutoffs();
+
+  const faturaFoco = useMemo(() => getFaturaAtual(cutoffs).slice(0, 7), [cutoffs]);
 
   const [filters, setFilters] = useState({
     search: "",
@@ -301,12 +303,18 @@ export default function Index() {
   };
 
   const normalizedExpenses = useMemo(() => {
-    return allExpenses.map((e) => ({
-      ...e,
-      parcela: e.parcela && e.parcela > 0 ? e.parcela : 1,
-      total_parcela: e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1,
-    }));
-  }, [allExpenses]);
+    return allExpenses.map((e) => {
+      const parcela = e.parcela && e.parcela > 0 ? e.parcela : 1;
+      const total_parcela = e.total_parcela && e.total_parcela > 0 ? e.total_parcela : 1;
+      const eff = effectiveFatura({ ...e, parcela, total_parcela }, cutoffs);
+      return {
+        ...e,
+        parcela,
+        total_parcela,
+        fatura: eff,
+      };
+    });
+  }, [allExpenses, cutoffs]);
 
   // Generate virtual future installments from parceladas
   const virtualExpenses = useMemo(() => {
@@ -855,6 +863,12 @@ export default function Index() {
             >
               Assinaturas
             </TabsTrigger>
+            <TabsTrigger
+              value="faturas"
+              className="px-8 py-2 font-black rounded-xl flex-1 sm:flex-none text-slate-500 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-700 transition-colors"
+            >
+              Faturas
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="dashboard" className="flex flex-col gap-6">
@@ -1171,11 +1185,15 @@ export default function Index() {
           </TabsContent>
 
           <TabsContent value="futuras">
-            <FutureExpenses expenses={normalizedExpenses} />
+            <FutureExpenses expenses={normalizedExpenses} cutoffs={cutoffs} />
           </TabsContent>
 
           <TabsContent value="assinaturas">
             <Subscriptions userId={session?.user?.id || ""} expenses={normalizedExpenses} />
+          </TabsContent>
+
+          <TabsContent value="faturas">
+            <InvoiceCutoffs expenses={normalizedExpenses} userId={session?.user?.id || ""} />
           </TabsContent>
         </Tabs>
       </div>

@@ -9,6 +9,7 @@ import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { resolveFatura, type InvoiceCutoff } from "@/lib/faturaResolver";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -20,7 +21,7 @@ interface VirtualExpense extends Expense {
 
 const SUBSCRIPTION_PROJECTION_MONTHS = 6;
 
-export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
+export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
   const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
@@ -94,8 +95,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
         if (exists) continue;
 
         const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
-        const faturaDate = addMonths(dataDate, 1);
-        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+        const faturaStr = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
 
         result.push({
           id: `sub_${sub.id}_${monthKey}`,
@@ -118,7 +118,7 @@ export function FutureExpenses({ expenses }: { expenses: Expense[] }) {
     }
 
     return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
-  }, [expenses, subscriptions]);
+  }, [expenses, subscriptions, cutoffs]);
 
   const uniqueFaturas = useMemo(
     () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
