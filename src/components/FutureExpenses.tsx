@@ -95,8 +95,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
         if (exists) continue;
 
         const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
-        const faturaDate = addMonths(dataDate, 1);
-        const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
+        const faturaStr = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
 
         result.push({
           id: `sub_${sub.id}_${monthKey}`,
