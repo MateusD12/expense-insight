@@ -1,52 +1,78 @@
 
 
-## Problemas
+## O que muda
 
-1. **Tabela mostra mais valores que Assinaturas**: o PDF do Itaú trouxe **2 cobranças** de algumas assinaturas no mesmo mês (ex: Totalpassao em 30/03 e 28/04, lovablelovable em 28/03 e 28/04). Não é bug — são cobranças reais que vieram na fatura mai/26. A página Assinaturas mostra só 1 entrada por nome (correto). A diferença é esperada, mas confunde.
+Hoje cada despesa tem o campo `fatura` fixado na importação/criação. O usuário quer que a fatura seja **derivada dinamicamente** a partir da **data de corte** de cada mês. Ex.: corte 25/04 → tudo até 25/04 entra na fatura de maio; a partir de 26/04 entra na fatura de junho.
 
-2. **Próximas faturas não mostram assinaturas ativas**: hoje `FutureExpenses` só projeta parcelas de compras parceladas. Assinaturas não-pausadas precisam aparecer como linhas virtuais nos meses futuros.
+## 1) Nova tabela `invoice_cutoffs`
 
-## O que será feito
+Armazena a data de corte e vencimento por cartão (banco + cartão) e por fatura.
 
-### 1) Projetar assinaturas em `FutureExpenses.tsx`
+Colunas:
+- `id` (uuid)
+- `user_id` (uuid)
+- `banco` (text)
+- `cartao` (text)
+- `fatura` (date, ex: `2026-05-01`) — fatura de referência
+- `data_corte` (date) — último dia que entra nessa fatura
+- `data_vencimento` (date) — quando vence
+- `created_at`, `updated_at`
+- Único por (`user_id`, `banco`, `cartao`, `fatura`)
 
-- Importar `useSubscriptions`.
-- Para cada assinatura **não pausada**, gerar **N linhas virtuais** (ex: próximos 6 meses) com:
-  - `despesa` = `subscription.nome`
-  - `valor` = `subscription.valor`
-  - `data` = `YYYY-MM-DD` usando `dia_cobranca`
-  - `fatura` = mês seguinte ao `data` (regra do app: compra do mês X cai na fatura X+1)
-  - `classificacao` = "Assinatura"
-  - flag visual `isSubscription: true` (ícone Repeat roxo, badge "ASSINATURA")
-- **Dedup**: se já existe despesa real com mesmo `nome` + mesmo mês de `data`, não gerar virtual daquele mês (evita duplicar com lançamento real já presente).
-- Pular geração para o **mês corrente** se `last_generated_month` já marcou (a auto-geração de `Subscriptions.tsx` cuida disso).
-- Assinaturas pausadas → não aparecem.
+RLS por `user_id`.
 
-### 2) Linha virtual de assinatura — ações
+## 2) Novo hook `useInvoiceCutoffs`
 
-- Sem botão "Adiantar" (não faz sentido para assinatura recorrente).
-- Mostrar badge "ASSINATURA" no lugar de Parcela.
-- Tooltip/legenda: "Projeção da assinatura ativa".
+CRUD básico + função utilitária `resolveFatura(banco, cartao, dataCompra)` que:
+- Pega todos os cortes do cartão ordenados por `data_corte`.
+- Encontra o primeiro corte cuja `data_corte >= dataCompra` → retorna sua `fatura`.
+- Se não houver corte definido para a data → fallback para o comportamento antigo (`addMonths(dataCompra, 1)` início do mês).
 
-### 3) Esclarecer duplicação na tabela (sem mexer em dado)
+## 3) Nova aba "Faturas" (configuração)
 
-- Adicionar pequena nota informativa no topo da página **Assinaturas**:
-  > "Algumas faturas trazem mais de uma cobrança da mesma assinatura no mês (ex: cobrança retroativa). A tabela do Dashboard mostra todos os lançamentos reais; aqui você vê apenas o cadastro recorrente."
-- Sem alterar dedup nem deletar lançamentos.
+Componente `InvoiceCutoffs.tsx`:
+- Lista por cartão: para cada banco+cartão usado, mostra os cortes cadastrados.
+- Botão "Definir corte" abre modal com: banco, cartão, fatura (mês), data de corte (date picker), data de vencimento.
+- Quando corte de uma fatura está vencido, sugere botão "Definir corte da próxima fatura" pré-preenchendo o mês seguinte.
 
-### 4) Validação visual rápida
+Adicionar tab "Faturas" em `Index.tsx` (ao lado de Assinaturas).
 
-- Confirmar nos logs que assinaturas projetadas aparecem em jun/26, jul/26… na aba **Futuras**.
-- Confirmar que assinatura **pausada** (lovablelovable.devus na imagem) **não aparece** nas próximas.
+## 4) Reclassificação dinâmica de despesas
+
+Em vez de filtrar pelo campo `fatura` salvo no banco, o app passa a calcular a **fatura efetiva** de cada despesa em runtime:
+
+- `effectiveFatura(expense) = resolveFatura(expense.banco, expense.cartao, expense.data)`
+- Se houver `fatura_original` (parcela adiantada manualmente) ou se a despesa é parcelada (parcela > 1), respeita o `fatura` salvo.
+- Caso contrário, usa o resultado de `resolveFatura`.
+
+Pontos afetados:
+- `Index.tsx` → `normalizedExpenses` ganha `effectiveFatura`; filtros e agrupamentos passam a usá-lo.
+- `FutureExpenses.tsx` → projeção de assinaturas usa `resolveFatura(sub.banco, sub.cartao, dataCobranca)` em vez do `addMonths(data, 1)` hardcoded.
+- `SummaryCards`, gráficos e dropdown de fatura → usam `effectiveFatura`.
+- Conceito de "fatura atual" deixa de ser `addMonths(now, 1)`: passa a ser **a fatura cuja `data_corte >= hoje`** (a primeira fatura aberta de cada cartão). Para o filtro padrão do dashboard, se houver múltiplos cartões, usa-se a fatura aberta mais próxima de fechar.
+
+## 5) Importação de PDF
+
+Quando um PDF traz uma fatura completa (ex: Itaú maio/26), o usuário pode marcar no diálogo de importação a `data_corte` e `data_vencimento` daquela fatura, o que cria/atualiza o registro em `invoice_cutoffs` automaticamente. As despisas continuam sendo salvas com o `fatura` resolvido (para parceladas) e os lançamentos à vista derivam dinamicamente.
+
+## 6) Compatibilidade retroativa
+
+- Despesas antigas continuam com seu `fatura` salvo intacto.
+- A função `effectiveFatura` só sobrescreve quando existe corte cadastrado para o cartão cobrindo a data; sem corte → comportamento antigo preservado.
+- Sem migração destrutiva nos dados existentes.
 
 ## Arquivos
 
-- `src/components/FutureExpenses.tsx` — adicionar projeção de assinaturas + flag visual.
-- `src/components/Subscriptions.tsx` — adicionar nota informativa no topo.
+- **Migração SQL**: criar tabela `invoice_cutoffs` + RLS.
+- `src/hooks/useInvoiceCutoffs.ts` (novo) — CRUD + `resolveFatura`.
+- `src/components/InvoiceCutoffs.tsx` (novo) — UI de configuração.
+- `src/lib/faturaResolver.ts` (novo) — função pura `resolveFatura` + `getFaturaAtual`.
+- `src/pages/Index.tsx` — adicionar tab "Faturas", aplicar `effectiveFatura` em filtros/dropdown.
+- `src/components/FutureExpenses.tsx` — usar `resolveFatura` na projeção de assinaturas.
 
 ## Fora de escopo
 
-- Alterar parser do PDF.
-- Apagar/agrupar cobranças duplicadas reais.
-- Mudança de schema.
+- Reescrever despesas antigas no banco.
+- Mudar parsers de PDF (apenas o diálogo de importação ganha campos opcionais de corte/vencimento).
+- Notificações/alertas de vencimento (pode ser uma próxima iteração).
 
