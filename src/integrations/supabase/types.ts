@@ -65,6 +65,42 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_cutoffs: {
+        Row: {
+          banco: string
+          cartao: string
+          created_at: string
+          data_corte: string
+          data_vencimento: string
+          fatura: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          banco: string
+          cartao: string
+          created_at?: string
+          data_corte: string
+          data_vencimento: string
+          fatura: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          banco?: string
+          cartao?: string
+          created_at?: string
+          data_corte?: string
+          data_vencimento?: string
+          fatura?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           budget: number | null
