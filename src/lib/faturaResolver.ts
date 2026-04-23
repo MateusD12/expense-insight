@@ -57,7 +57,15 @@ export function getFaturaAtual(cutoffs: InvoiceCutoff[]): string {
  * - Otherwise → compute from cutoffs/data
  */
 export function effectiveFatura(
-  expense: { banco: string; cartao: string; data: string | null; fatura: string | null; fatura_original: string | null; total_parcela: number },
+  expense: {
+    banco: string;
+    cartao: string;
+    data: string | null;
+    fatura: string | null;
+    fatura_original: string | null;
+    total_parcela: number;
+    [key: string]: any;
+  },
   cutoffs: InvoiceCutoff[],
 ): string | null {
   if (expense.fatura_original) return expense.fatura;
