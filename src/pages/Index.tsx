@@ -20,8 +20,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { InvoiceImport } from "@/components/InvoiceImport";
+import { InvoiceCutoffs } from "@/components/InvoiceCutoffs";
 import { parseInvoicePdf } from "@/lib/parseInvoicePdf";
 import type { ParsedInvoice } from "@/lib/invoiceTypes";
+import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
+import { effectiveFatura, getFaturaAtual } from "@/lib/faturaResolver";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Plus,
