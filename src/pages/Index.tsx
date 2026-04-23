@@ -110,10 +110,9 @@ export default function Index() {
     deleteExpense,
   } = useExpenses();
 
-  const faturaFoco = useMemo(() => {
-    const now = new Date();
-    return format(addMonths(now, 1), "yyyy-MM");
-  }, []);
+  const { data: cutoffs = [] } = useInvoiceCutoffs();
+
+  const faturaFoco = useMemo(() => getFaturaAtual(cutoffs).slice(0, 7), [cutoffs]);
 
   const [filters, setFilters] = useState({
     search: "",
