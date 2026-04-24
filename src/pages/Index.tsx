@@ -410,7 +410,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, virtualExpenses, filters, sortConfig]);
+  }, [normalizedExpenses, virtualExpenses, filters, sortConfig, faturaFoco]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
