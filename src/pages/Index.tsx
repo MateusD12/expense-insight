@@ -373,27 +373,15 @@ export default function Index() {
   };
 
   const filteredAndSorted = useMemo(() => {
-    const hoje = new Date();
-    const todayStr = format(hoje, "yyyy-MM-dd");
-    const faturaAtual = format(addMonths(hoje, 1), "yyyy-MM"); // "2026-05"
+    // Fatura "foco" = primeira fatura aberta (data_corte >= hoje) baseada nos cortes cadastrados.
+    // Quando o filtro é a fatura foco ou uma futura, incluímos parcelas virtuais.
+    // Quando é "all" ou uma fatura anterior, mostramos apenas o que existe (efetivo) sem virtuais.
+    const isFutureOrFocus =
+      filters.fatura !== "all" && filters.fatura >= faturaFoco;
 
-    // If user selected a specific future fatura, include virtual expenses and skip isPresente
-    const isFutureFilter = filters.fatura !== "all" && filters.fatura > faturaAtual;
-
-    const pool = isFutureFilter ? [...normalizedExpenses, ...virtualExpenses] : normalizedExpenses;
+    const pool = isFutureOrFocus ? [...normalizedExpenses, ...virtualExpenses] : normalizedExpenses;
 
     let result = pool.filter((e) => {
-      const faturaMes = e.fatura?.substring(0, 7);
-
-      if (!isFutureFilter) {
-        // REGRA DO DASHBOARD: só mostra presentes
-        const isAVista = (e.total_parcela || 0) <= 1;
-        const jaVenceuODia = faturaMes && faturaMes <= faturaAtual && e.data <= todayStr;
-        const isAdvanced = !!e.fatura_original;
-        const isPresente = isAVista || jaVenceuODia || isAdvanced;
-        if (!isPresente) return false;
-      }
-
       const matchSearch =
         e.despesa?.toLowerCase().includes(filters.search.toLowerCase()) ||
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
@@ -422,7 +410,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, virtualExpenses, filters, sortConfig]);
+  }, [normalizedExpenses, virtualExpenses, filters, sortConfig, faturaFoco]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
