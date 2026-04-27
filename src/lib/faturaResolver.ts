@@ -52,9 +52,13 @@ export function getFaturaAtual(cutoffs: InvoiceCutoff[]): string {
 }
 
 /**
- * Effective fatura for an expense:
- * - If parcelada (total_parcela > 1) or has fatura_original (manually advanced) → keep stored fatura
- * - Otherwise → compute from cutoffs/data
+ * Effective fatura for an expense.
+ *
+ * Regra: a fatura salva no banco é a verdade. O usuário pode ter escolhido
+ * manualmente (ex.: comprou em 25/04 mas decidiu jogar para junho), e essa
+ * escolha precisa ser preservada — mesmo que a data de corte resolva outro mês.
+ *
+ * Só resolvemos via cutoffs quando NÃO há fatura salva (legado/import sem mês).
  */
 export function effectiveFatura(
   expense: {
@@ -68,8 +72,7 @@ export function effectiveFatura(
   },
   cutoffs: InvoiceCutoff[],
 ): string | null {
-  if (expense.fatura_original) return expense.fatura;
-  if ((expense.total_parcela || 1) > 1) return expense.fatura;
-  if (!expense.data) return expense.fatura;
+  if (expense.fatura) return expense.fatura;
+  if (!expense.data) return null;
   return resolveFatura(expense.banco, expense.cartao, expense.data, cutoffs);
 }
