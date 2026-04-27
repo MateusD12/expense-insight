@@ -16,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Check, ChevronsUpDown, Plus, Calculator } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { addMonths, format, parseISO } from "date-fns";
+import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
+import { resolveFatura } from "@/lib/faturaResolver";
 
 interface ExpenseFormProps {
   open: boolean;
@@ -26,8 +28,10 @@ interface ExpenseFormProps {
 
 export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: ExpenseFormProps) {
   const { data: allExpenses = [], bulkAddExpenses } = useExpenses();
+  const { data: cutoffs = [] } = useInvoiceCutoffs();
   const [inputMensal, setInputMensal] = useState("");
   const [inputTotal, setInputTotal] = useState("");
+  const [faturaTouched, setFaturaTouched] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Expense>>({
     banco: "",
@@ -51,6 +55,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       });
       setInputMensal(initialData.valor.toString());
       setInputTotal((initialData.valor * (initialData.total_parcela || 1)).toFixed(2));
+      setFaturaTouched(true); // editing: keep stored fatura, don't auto-overwrite
     } else {
       const hoje = new Date();
       setFormData({
@@ -67,8 +72,19 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
       });
       setInputMensal("");
       setInputTotal("");
+      setFaturaTouched(false);
     }
   }, [initialData, open]);
+
+  // Auto-suggest fatura from cutoffs when banco/cartao/data change (only if user hasn't manually picked).
+  useEffect(() => {
+    if (faturaTouched) return;
+    if (!formData.banco || !formData.cartao || !formData.data) return;
+    const resolved = resolveFatura(formData.banco, formData.cartao, formData.data, cutoffs);
+    if (resolved) {
+      setFormData((f) => ({ ...f, fatura: resolved.substring(0, 7) }));
+    }
+  }, [formData.banco, formData.cartao, formData.data, cutoffs, faturaTouched]);
 
   const handleSave = () => {
     const totalParcelas = Number(formData.total_parcela) || 1;
