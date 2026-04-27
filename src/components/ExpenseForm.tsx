@@ -235,7 +235,10 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
               <Input
                 type="month"
                 value={formData.fatura}
-                onChange={(e) => setFormData({ ...formData, fatura: e.target.value })}
+                onChange={(e) => {
+                  setFaturaTouched(true);
+                  setFormData({ ...formData, fatura: e.target.value });
+                }}
               />
             </div>
           </div>
