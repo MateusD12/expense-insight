@@ -132,6 +132,7 @@ export default function Index() {
     direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [hideOlderThanFoco, setHideOlderThanFoco] = useState(true);
   const [chartPeriod, setChartPeriod] = useState("6m");
 
   const [formOpen, setFormOpen] = useState(false);
