@@ -517,17 +517,13 @@ export default function Index() {
 
   // Chart temporal data: independent of dashboard filters
   const chartTemporalData = useMemo(() => {
-    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const allPool = [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals];
     const temporal: Record<string, number> = {};
     allPool.forEach((e) => {
       if (e.fatura) {
         const f = e.fatura.slice(0, 7);
         temporal[f] = (temporal[f] || 0) + Number(e.valor);
       }
-    });
-    subscriptionVirtuals.forEach((s) => {
-      const f = s.fatura.slice(0, 7);
-      temporal[f] = (temporal[f] || 0) + s.valor;
     });
 
     let entries = Object.entries(temporal).sort();
