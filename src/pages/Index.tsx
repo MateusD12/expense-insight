@@ -1139,8 +1139,18 @@ export default function Index() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSorted.map((e) => (
-                      <TableRow key={e.id} className="hover:bg-blue-50/50 transition-colors">
+                    {filteredAndSorted.map((e: any) => {
+                      const isVirtual = !!e.isVirtual;
+                      const isSubscription = !!e.isSubscription;
+                      return (
+                      <TableRow
+                        key={e.id}
+                        className={cn(
+                          "hover:bg-blue-50/50 transition-colors",
+                          isVirtual && !isSubscription && "bg-slate-50/40",
+                          isSubscription && "bg-indigo-50/30",
+                        )}
+                      >
                         <TableCell className="font-bold text-xs">{e.banco}</TableCell>
                         <TableCell className="text-right font-black text-blue-600">
                           {formatCurrency(Number(e.valor))}
@@ -1151,7 +1161,16 @@ export default function Index() {
                         <TableCell className="text-slate-500 text-xs font-bold">
                           {format(parseISO(e.data), "dd/MM/yy")}
                         </TableCell>
-                        <TableCell className="font-bold text-sm">{e.despesa}</TableCell>
+                        <TableCell className="font-bold text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {isSubscription ? (
+                              <Repeat size={12} className="text-indigo-500" />
+                            ) : isVirtual ? (
+                              <Sparkles size={12} className="text-purple-400" />
+                            ) : null}
+                            {e.despesa}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(
@@ -1164,30 +1183,37 @@ export default function Index() {
                         </TableCell>
                         <TableCell className="text-xs truncate max-w-[150px]">{e.justificativa || "-"}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-500"
-                              onClick={() => {
-                                setEditing(e);
-                                setFormOpen(true);
-                              }}
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500"
-                              onClick={() => setDeleting(e.id)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
-                          </div>
+                          {isVirtual ? (
+                            <span className="text-[9px] font-bold uppercase text-slate-400 italic">
+                              {isSubscription ? "Recorrente" : "Projeção"}
+                            </span>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-500"
+                                onClick={() => {
+                                  setEditing(e);
+                                  setFormOpen(true);
+                                }}
+                              >
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500"
+                                onClick={() => setDeleting(e.id)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
