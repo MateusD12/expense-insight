@@ -791,13 +791,19 @@ export default function Index() {
           )}
         </div>
 
-        {filters.fatura !== "all" && (
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Switch checked={hideOlderThanFoco} onCheckedChange={setHideOlderThanFoco} />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600">
+              Somente próximas faturas
+            </span>
+          </label>
+          {filters.fatura !== "all" && (
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">
               📋 Fatura de {formatFatura(filters.fatura)}
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
