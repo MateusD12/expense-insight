@@ -395,12 +395,16 @@ export default function Index() {
 
   const filteredAndSorted = useMemo(() => {
     // Fatura "foco" = primeira fatura aberta (data_corte >= hoje) baseada nos cortes cadastrados.
-    // Quando o filtro é a fatura foco ou uma futura, incluímos parcelas virtuais.
-    // Quando é "all" ou uma fatura anterior, mostramos apenas o que existe (efetivo) sem virtuais.
+    // Quando o filtro é a fatura foco, futura ou "all", incluímos parcelas e assinaturas virtuais.
+    // Quando é uma fatura anterior específica, mostramos apenas o efetivo.
     const isFutureOrFocus =
       filters.fatura !== "all" && filters.fatura >= faturaFoco;
+    const isAll = filters.fatura === "all";
 
-    const pool = isFutureOrFocus ? [...normalizedExpenses, ...virtualExpenses] : normalizedExpenses;
+    const pool =
+      isFutureOrFocus || isAll
+        ? [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals]
+        : normalizedExpenses;
 
     let result = pool.filter((e) => {
       const matchSearch =
@@ -412,7 +416,11 @@ export default function Index() {
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
-    // ... o restante do sort continua igual ...
+
+    // "Somente próximas faturas": oculta tudo cuja fatura seja anterior à fatura foco.
+    if (hideOlderThanFoco) {
+      result = result.filter((e) => (e.fatura ? e.fatura.slice(0, 7) : "") >= faturaFoco);
+    }
 
     result.sort((a: any, b: any) => {
       if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
@@ -431,7 +439,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, virtualExpenses, filters, sortConfig, faturaFoco]);
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, filters, sortConfig, faturaFoco, hideOlderThanFoco]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
