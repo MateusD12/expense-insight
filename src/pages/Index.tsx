@@ -504,13 +504,11 @@ export default function Index() {
     const baseDate = new Date(baseFatura + "-01T12:00:00");
     const nextDate = addMonths(baseDate, 1);
     const nextKey = format(nextDate, "yyyy-MM");
-    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const allPool = [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals];
     const expensesTotal = allPool
       .filter((e) => e.fatura?.slice(0, 7) === nextKey)
       .reduce((acc, e) => acc + Number(e.valor), 0);
-    const subsTotal = subscriptionVirtuals
-      .filter((s) => s.fatura.slice(0, 7) === nextKey)
-      .reduce((acc, s) => acc + s.valor, 0);
+    const subsTotal = 0;
     return {
       label: format(nextDate, "MMM/yy", { locale: ptBR }),
       total: expensesTotal + subsTotal,
