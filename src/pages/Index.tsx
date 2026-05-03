@@ -333,7 +333,7 @@ export default function Index() {
   // skipping months where a real expense for that subscription already exists.
   const { data: subscriptions = [] } = useSubscriptions();
   const subscriptionVirtuals = useMemo(() => {
-    const result: { fatura: string; valor: number }[] = [];
+    const result: (Expense & { isVirtual?: boolean; isSubscription?: boolean })[] = [];
     const today = new Date();
     const currentMonthKey = format(today, "yyyy-MM");
     for (const sub of subscriptions) {
@@ -351,7 +351,24 @@ export default function Index() {
         if (exists) continue;
         const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
         const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
-        if (fatura) result.push({ fatura, valor: Number(sub.valor) });
+        if (!fatura) continue;
+        result.push({
+          id: `sub_${sub.id}_${monthKey}`,
+          banco: sub.banco || "",
+          cartao: sub.cartao || "",
+          valor: Number(sub.valor),
+          data: dataStr,
+          parcela: 1,
+          total_parcela: 1,
+          despesa: sub.nome,
+          justificativa: sub.justificativa,
+          classificacao: sub.classificacao || "Assinaturas",
+          fatura,
+          fatura_original: null,
+          created_at: "",
+          isVirtual: true,
+          isSubscription: true,
+        } as any);
       }
     }
     return result;
