@@ -40,7 +40,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Sparkles,
+  Repeat,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   PieChart,
   Pie,
@@ -129,6 +132,7 @@ export default function Index() {
     direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [hideOlderThanFoco, setHideOlderThanFoco] = useState(true);
   const [chartPeriod, setChartPeriod] = useState("6m");
 
   const [formOpen, setFormOpen] = useState(false);
@@ -329,7 +333,7 @@ export default function Index() {
   // skipping months where a real expense for that subscription already exists.
   const { data: subscriptions = [] } = useSubscriptions();
   const subscriptionVirtuals = useMemo(() => {
-    const result: { fatura: string; valor: number }[] = [];
+    const result: (Expense & { isVirtual?: boolean; isSubscription?: boolean })[] = [];
     const today = new Date();
     const currentMonthKey = format(today, "yyyy-MM");
     for (const sub of subscriptions) {
@@ -347,7 +351,24 @@ export default function Index() {
         if (exists) continue;
         const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
         const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
-        if (fatura) result.push({ fatura, valor: Number(sub.valor) });
+        if (!fatura) continue;
+        result.push({
+          id: `sub_${sub.id}_${monthKey}`,
+          banco: sub.banco || "",
+          cartao: sub.cartao || "",
+          valor: Number(sub.valor),
+          data: dataStr,
+          parcela: 1,
+          total_parcela: 1,
+          despesa: sub.nome,
+          justificativa: sub.justificativa,
+          classificacao: sub.classificacao || "Assinaturas",
+          fatura,
+          fatura_original: null,
+          created_at: "",
+          isVirtual: true,
+          isSubscription: true,
+        } as any);
       }
     }
     return result;
@@ -357,7 +378,7 @@ export default function Index() {
   const allFaturaOptions = useMemo(() => {
     const realFaturas = normalizedExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
     const virtualFaturas = virtualExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
-    const subFaturas = subscriptionVirtuals.map((s) => s.fatura.slice(0, 7));
+    const subFaturas = subscriptionVirtuals.map((s) => s.fatura?.slice(0, 7)).filter(Boolean) as string[];
     return [...new Set([...realFaturas, ...virtualFaturas, ...subFaturas])].sort();
   }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
@@ -374,12 +395,16 @@ export default function Index() {
 
   const filteredAndSorted = useMemo(() => {
     // Fatura "foco" = primeira fatura aberta (data_corte >= hoje) baseada nos cortes cadastrados.
-    // Quando o filtro é a fatura foco ou uma futura, incluímos parcelas virtuais.
-    // Quando é "all" ou uma fatura anterior, mostramos apenas o que existe (efetivo) sem virtuais.
+    // Quando o filtro é a fatura foco, futura ou "all", incluímos parcelas e assinaturas virtuais.
+    // Quando é uma fatura anterior específica, mostramos apenas o efetivo.
     const isFutureOrFocus =
       filters.fatura !== "all" && filters.fatura >= faturaFoco;
+    const isAll = filters.fatura === "all";
 
-    const pool = isFutureOrFocus ? [...normalizedExpenses, ...virtualExpenses] : normalizedExpenses;
+    const pool =
+      isFutureOrFocus || isAll
+        ? [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals]
+        : normalizedExpenses;
 
     let result = pool.filter((e) => {
       const matchSearch =
@@ -391,7 +416,11 @@ export default function Index() {
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
-    // ... o restante do sort continua igual ...
+
+    // "Somente próximas faturas": oculta tudo cuja fatura seja anterior à fatura foco.
+    if (hideOlderThanFoco) {
+      result = result.filter((e) => (e.fatura ? e.fatura.slice(0, 7) : "") >= faturaFoco);
+    }
 
     result.sort((a: any, b: any) => {
       if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
@@ -410,7 +439,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, virtualExpenses, filters, sortConfig, faturaFoco]);
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, filters, sortConfig, faturaFoco, hideOlderThanFoco]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};
@@ -475,13 +504,11 @@ export default function Index() {
     const baseDate = new Date(baseFatura + "-01T12:00:00");
     const nextDate = addMonths(baseDate, 1);
     const nextKey = format(nextDate, "yyyy-MM");
-    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const allPool = [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals];
     const expensesTotal = allPool
       .filter((e) => e.fatura?.slice(0, 7) === nextKey)
       .reduce((acc, e) => acc + Number(e.valor), 0);
-    const subsTotal = subscriptionVirtuals
-      .filter((s) => s.fatura.slice(0, 7) === nextKey)
-      .reduce((acc, s) => acc + s.valor, 0);
+    const subsTotal = 0;
     return {
       label: format(nextDate, "MMM/yy", { locale: ptBR }),
       total: expensesTotal + subsTotal,
@@ -490,17 +517,13 @@ export default function Index() {
 
   // Chart temporal data: independent of dashboard filters
   const chartTemporalData = useMemo(() => {
-    const allPool = [...normalizedExpenses, ...virtualExpenses];
+    const allPool = [...normalizedExpenses, ...virtualExpenses, ...subscriptionVirtuals];
     const temporal: Record<string, number> = {};
     allPool.forEach((e) => {
       if (e.fatura) {
         const f = e.fatura.slice(0, 7);
         temporal[f] = (temporal[f] || 0) + Number(e.valor);
       }
-    });
-    subscriptionVirtuals.forEach((s) => {
-      const f = s.fatura.slice(0, 7);
-      temporal[f] = (temporal[f] || 0) + s.valor;
     });
 
     let entries = Object.entries(temporal).sort();
@@ -768,13 +791,19 @@ export default function Index() {
           )}
         </div>
 
-        {filters.fatura !== "all" && (
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <Switch checked={hideOlderThanFoco} onCheckedChange={setHideOlderThanFoco} />
+            <span className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-600">
+              Somente próximas faturas
+            </span>
+          </label>
+          {filters.fatura !== "all" && (
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">
               📋 Fatura de {formatFatura(filters.fatura)}
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
@@ -1110,8 +1139,18 @@ export default function Index() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSorted.map((e) => (
-                      <TableRow key={e.id} className="hover:bg-blue-50/50 transition-colors">
+                    {filteredAndSorted.map((e: any) => {
+                      const isVirtual = !!e.isVirtual;
+                      const isSubscription = !!e.isSubscription;
+                      return (
+                      <TableRow
+                        key={e.id}
+                        className={cn(
+                          "hover:bg-blue-50/50 transition-colors",
+                          isVirtual && !isSubscription && "bg-slate-50/40",
+                          isSubscription && "bg-indigo-50/30",
+                        )}
+                      >
                         <TableCell className="font-bold text-xs">{e.banco}</TableCell>
                         <TableCell className="text-right font-black text-blue-600">
                           {formatCurrency(Number(e.valor))}
@@ -1122,7 +1161,16 @@ export default function Index() {
                         <TableCell className="text-slate-500 text-xs font-bold">
                           {format(parseISO(e.data), "dd/MM/yy")}
                         </TableCell>
-                        <TableCell className="font-bold text-sm">{e.despesa}</TableCell>
+                        <TableCell className="font-bold text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {isSubscription ? (
+                              <Repeat size={12} className="text-indigo-500" />
+                            ) : isVirtual ? (
+                              <Sparkles size={12} className="text-purple-400" />
+                            ) : null}
+                            {e.despesa}
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <span
                             className={cn(
@@ -1135,30 +1183,37 @@ export default function Index() {
                         </TableCell>
                         <TableCell className="text-xs truncate max-w-[150px]">{e.justificativa || "-"}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-blue-500"
-                              onClick={() => {
-                                setEditing(e);
-                                setFormOpen(true);
-                              }}
-                            >
-                              <Pencil size={14} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500"
-                              onClick={() => setDeleting(e.id)}
-                            >
-                              <Trash2 size={14} />
-                            </Button>
-                          </div>
+                          {isVirtual ? (
+                            <span className="text-[9px] font-bold uppercase text-slate-400 italic">
+                              {isSubscription ? "Recorrente" : "Projeção"}
+                            </span>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-blue-500"
+                                onClick={() => {
+                                  setEditing(e);
+                                  setFormOpen(true);
+                                }}
+                              >
+                                <Pencil size={14} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500"
+                                onClick={() => setDeleting(e.id)}
+                              >
+                                <Trash2 size={14} />
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
