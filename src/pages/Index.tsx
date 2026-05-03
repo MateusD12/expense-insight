@@ -378,7 +378,7 @@ export default function Index() {
   const allFaturaOptions = useMemo(() => {
     const realFaturas = normalizedExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
     const virtualFaturas = virtualExpenses.map((e) => e.fatura?.slice(0, 7)).filter(Boolean) as string[];
-    const subFaturas = subscriptionVirtuals.map((s) => s.fatura.slice(0, 7));
+    const subFaturas = subscriptionVirtuals.map((s) => s.fatura?.slice(0, 7)).filter(Boolean) as string[];
     return [...new Set([...realFaturas, ...virtualFaturas, ...subFaturas])].sort();
   }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals]);
 
