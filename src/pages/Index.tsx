@@ -40,7 +40,10 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  Sparkles,
+  Repeat,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import {
   PieChart,
   Pie,
