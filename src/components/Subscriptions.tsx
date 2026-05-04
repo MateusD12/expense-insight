@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
+import { resolveFatura } from "@/lib/faturaResolver";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
