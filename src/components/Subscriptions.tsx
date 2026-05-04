@@ -21,6 +21,8 @@ import { cn } from "@/lib/utils";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
+import { resolveFatura } from "@/lib/faturaResolver";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -42,6 +44,7 @@ const emptyForm = {
 export function Subscriptions({ userId, expenses }: Props) {
   const { data: subs = [], addSubscription, updateSubscription, deleteSubscription, togglePause } = useSubscriptions();
   const { addExpense } = useExpenses();
+  const { data: cutoffs = [] } = useInvoiceCutoffs();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Subscription | null>(null);
@@ -156,9 +159,6 @@ export function Subscriptions({ userId, expenses }: Props) {
     if (!userId || subs.length === 0) return;
     const now = new Date();
     const currentMonthKey = format(now, "yyyy-MM"); // mês corrente real
-    // Fatura alvo = mês seguinte (regra do app)
-    const faturaDate = addMonths(now, 1);
-    const faturaStr = `${faturaDate.getFullYear()}-${String(faturaDate.getMonth() + 1).padStart(2, "0")}-01`;
 
     subs.forEach((s) => {
       if (s.paused) return;
@@ -177,6 +177,9 @@ export function Subscriptions({ userId, expenses }: Props) {
 
       const dia = Math.min(s.dia_cobranca, 28); // segurança contra meses curtos
       const dataStr = `${currentMonthKey}-${String(dia).padStart(2, "0")}`;
+
+      // Fatura alvo via cortes (respeita corte do cartão)
+      const faturaStr = resolveFatura(s.banco || "", s.cartao || "", dataStr, cutoffs);
 
       addExpense.mutate(
         {
@@ -200,7 +203,7 @@ export function Subscriptions({ userId, expenses }: Props) {
       );
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subs.length, userId]);
+  }, [subs.length, userId, cutoffs.length]);
 
   const ativas = subs.filter((s) => !s.paused);
   const pausadas = subs.filter((s) => s.paused);

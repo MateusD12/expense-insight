@@ -72,8 +72,13 @@ export function getFaturaAtual(cutoffs: InvoiceCutoff[]): string {
 
 /**
  * Effective fatura para uma despesa.
- * A fatura salva no banco prevalece (escolha manual / importação).
- * Só resolvemos via cutoffs quando não há fatura registrada.
+ *
+ * Regras:
+ * - Sem fatura salva: resolvemos pelos cortes.
+ * - Parcela > 1: respeitamos a fatura salva (sequência da compra parcelada).
+ * - Caso contrário: se a fatura salva for incompatível com o corte vigente
+ *   (ex.: compra depois do corte daquela fatura), recalculamos para refletir
+ *   a regra dos cortes. Caso a fatura salva ainda seja válida, mantemos.
  */
 export function effectiveFatura(
   expense: {
@@ -82,12 +87,31 @@ export function effectiveFatura(
     data: string | null;
     fatura: string | null;
     fatura_original: string | null;
+    parcela?: number;
     total_parcela: number;
     [key: string]: any;
   },
   cutoffs: InvoiceCutoff[],
 ): string | null {
-  if (expense.fatura) return expense.fatura;
-  if (!expense.data) return null;
-  return resolveFatura(expense.banco, expense.cartao, expense.data, cutoffs);
+  if (!expense.data) return expense.fatura ?? null;
+
+  // Parcelas > 1 mantêm a sequência salva
+  if ((expense.total_parcela || 1) > 1) return expense.fatura ?? null;
+
+  const resolved = resolveFatura(expense.banco, expense.cartao, expense.data, cutoffs);
+  if (!expense.fatura) return resolved;
+
+  // Existe corte para essa fatura salva? Se a compra é depois do corte dela,
+  // a fatura salva está errada — usar a resolvida.
+  const savedKey = expense.fatura.slice(0, 7);
+  const cutoffForSaved = cutoffs.find(
+    (c) =>
+      c.banco === expense.banco &&
+      c.cartao === expense.cartao &&
+      c.fatura.slice(0, 7) === savedKey,
+  );
+  if (cutoffForSaved && expense.data > cutoffForSaved.data_corte) {
+    return resolved;
+  }
+  return expense.fatura;
 }
