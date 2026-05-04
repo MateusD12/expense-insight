@@ -44,6 +44,7 @@ const emptyForm = {
 export function Subscriptions({ userId, expenses }: Props) {
   const { data: subs = [], addSubscription, updateSubscription, deleteSubscription, togglePause } = useSubscriptions();
   const { addExpense } = useExpenses();
+  const { data: cutoffs = [] } = useInvoiceCutoffs();
 
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Subscription | null>(null);
