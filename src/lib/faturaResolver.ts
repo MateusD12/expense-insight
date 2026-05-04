@@ -1,20 +1,27 @@
-import { addMonths, format } from "date-fns";
+import { addMonths, format, parseISO, differenceInCalendarMonths } from "date-fns";
 
 export interface InvoiceCutoff {
   id: string;
   banco: string;
   cartao: string;
-  fatura: string; // YYYY-MM-DD
+  fatura: string; // YYYY-MM-DD (day=01)
   data_corte: string; // YYYY-MM-DD
   data_vencimento: string; // YYYY-MM-DD
 }
+
+const faturaPlusMonths = (faturaISO: string, months: number) => {
+  const d = parseISO(faturaISO.length === 7 ? `${faturaISO}-01` : faturaISO);
+  const next = addMonths(d, months);
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
+};
 
 /**
  * Resolves which fatura (YYYY-MM-DD, day=01) a purchase belongs to,
  * based on configured cutoffs for the given card.
  *
- * Rule: the first cutoff whose data_corte >= dataCompra wins.
- * Fallback (no matching cutoff): purchase month + 1, day 01.
+ * Regra: compras com data <= data_corte entram naquela fatura.
+ * Compras posteriores ao último corte conhecido avançam para faturas
+ * subsequentes (1 mês por intervalo de mês entre o corte e a compra).
  */
 export function resolveFatura(
   banco: string,
@@ -26,24 +33,36 @@ export function resolveFatura(
     .filter((c) => c.banco === banco && c.cartao === cartao)
     .sort((a, b) => a.data_corte.localeCompare(b.data_corte));
 
-  const match = cardCutoffs.find((c) => c.data_corte >= dataCompra);
+  // Primeira fatura cujo corte ainda "abraça" a compra
+  const match = cardCutoffs.find((c) => dataCompra <= c.data_corte);
   if (match) return match.fatura;
 
-  // Fallback: previous behaviour
-  const d = new Date(dataCompra + "T12:00:00");
+  // Compra é depois do último corte conhecido — avançar a partir da última fatura
+  const last = cardCutoffs[cardCutoffs.length - 1];
+  if (last) {
+    const monthsAhead = Math.max(
+      1,
+      differenceInCalendarMonths(parseISO(dataCompra), parseISO(last.data_corte)) + 1,
+    );
+    return faturaPlusMonths(last.fatura, monthsAhead);
+  }
+
+  // Sem cortes cadastrados: fallback "mês da compra + 1"
+  const d = parseISO(dataCompra);
   const next = addMonths(d, 1);
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
 /**
- * Returns the "fatura atual" — the first open invoice (cutoff in the future)
- * across all configured cards. Falls back to next month if none configured.
+ * Fatura "foco" do dashboard = a menor fatura ainda em aberto considerando
+ * o vencimento (não o corte). Enquanto qualquer cartão tiver fatura de mai/26
+ * com vencimento futuro, mai/26 continua sendo a fatura foco.
  */
 export function getFaturaAtual(cutoffs: InvoiceCutoff[]): string {
   const today = format(new Date(), "yyyy-MM-dd");
   const open = cutoffs
-    .filter((c) => c.data_corte >= today)
-    .sort((a, b) => a.data_corte.localeCompare(b.data_corte));
+    .filter((c) => c.data_vencimento >= today)
+    .sort((a, b) => a.fatura.localeCompare(b.fatura));
   if (open.length > 0) return open[0].fatura;
 
   const now = new Date();
@@ -52,13 +71,9 @@ export function getFaturaAtual(cutoffs: InvoiceCutoff[]): string {
 }
 
 /**
- * Effective fatura for an expense.
- *
- * Regra: a fatura salva no banco é a verdade. O usuário pode ter escolhido
- * manualmente (ex.: comprou em 25/04 mas decidiu jogar para junho), e essa
- * escolha precisa ser preservada — mesmo que a data de corte resolva outro mês.
- *
- * Só resolvemos via cutoffs quando NÃO há fatura salva (legado/import sem mês).
+ * Effective fatura para uma despesa.
+ * A fatura salva no banco prevalece (escolha manual / importação).
+ * Só resolvemos via cutoffs quando não há fatura registrada.
  */
 export function effectiveFatura(
   expense: {

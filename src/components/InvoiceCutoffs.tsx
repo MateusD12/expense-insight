@@ -182,21 +182,28 @@ export function InvoiceCutoffs({ expenses, userId }: Props) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {list.map((c) => {
                       const isOpen = c.data_corte >= today;
+                      const venceAntesDoCorte = c.data_vencimento < c.data_corte;
                       return (
                         <div
                           key={c.id}
                           className={cn(
                             "flex items-center justify-between rounded-md border px-3 py-2 text-xs",
                             isOpen ? "bg-emerald-50/50 border-emerald-200" : "bg-slate-50",
+                            venceAntesDoCorte && "border-red-300 bg-red-50/50",
                           )}
                         >
                           <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge variant="outline" className="font-bold uppercase">
                                 {format(parseISO(c.fatura), "MMM/yy", { locale: ptBR })}
                               </Badge>
                               {isOpen && (
                                 <Badge className="bg-emerald-600 text-white text-[10px]">Aberta</Badge>
+                              )}
+                              {venceAntesDoCorte && (
+                                <Badge className="bg-red-600 text-white text-[10px] gap-1">
+                                  <AlertCircle size={10} /> Vencimento antes do corte
+                                </Badge>
                               )}
                             </div>
                             <div className="text-muted-foreground">
