@@ -133,6 +133,7 @@ export default function Index() {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [hideOlderThanFoco, setHideOlderThanFoco] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "realizado" | "aCair">("all");
   const [chartPeriod, setChartPeriod] = useState("6m");
 
   const [formOpen, setFormOpen] = useState(false);
@@ -422,6 +423,13 @@ export default function Index() {
       result = result.filter((e) => (e.fatura ? e.fatura.slice(0, 7) : "") >= faturaFoco);
     }
 
+    // Filtro por status (cards Já Gasto / A Cair)
+    if (statusFilter === "realizado") {
+      result = result.filter((e: any) => !e.isVirtual);
+    } else if (statusFilter === "aCair") {
+      result = result.filter((e: any) => e.isVirtual);
+    }
+
     result.sort((a: any, b: any) => {
       if (sortConfig.key === "valor" || sortConfig.key === "parcela") {
         const aVal = Number(a[sortConfig.key]) || 0;
@@ -439,7 +447,7 @@ export default function Index() {
     });
 
     return result;
-  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, filters, sortConfig, faturaFoco, hideOlderThanFoco]);
+  }, [normalizedExpenses, virtualExpenses, subscriptionVirtuals, filters, sortConfig, faturaFoco, hideOlderThanFoco, statusFilter]);
 
   const chartData = useMemo(() => {
     const banks: Record<string, number> = {};

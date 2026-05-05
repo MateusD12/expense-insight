@@ -1,14 +1,17 @@
-Vou dividir o card "Total Gastos" em três novos, mantendo Teto, Transações, Maior Categoria e Próx. Fatura.
+Tornar os 3 cards (Já Gasto, A Cair, Previsto Fatura) clicáveis como filtros de status que afetam tabela e dashboard.
 
-Cards novos (sempre baseados na fatura atualmente filtrada):
+Mudanças em `src/pages/Index.tsx`:
 
-1. Já Gasto — soma apenas das despesas reais (registros já existentes no banco). Quando a parcela/assinatura "cai" e vira lançamento real, ela passa a contar aqui automaticamente.
-2. A Cair — soma apenas dos itens virtuais (parcelas futuras projetadas + assinaturas previstas) ainda não materializados.
-3. Previsto Fatura — soma dos dois acima (estimativa total da fatura até o fechamento).
+1. Adicionar estado `statusFilter: "all" | "realizado" | "aCair"` (default `"all"`).
+2. No `filteredAndSorted`, após o filtro de "somente próximas faturas", aplicar:
+   - `realizado` → mantém apenas itens onde `!isVirtual` (já caíram).
+   - `aCair` → mantém apenas itens com `isVirtual` (parcelas/assinaturas projetadas).
+   - `all` → sem alteração.
+3. Tornar os 3 cards `cursor-pointer` com `onClick`:
+   - Já Gasto → toggle `realizado`.
+   - A Cair → toggle `aCair`.
+   - Previsto Fatura → reseta para `all` (mostra tudo).
+4. Indicar visualmente o card ativo com `ring-2 ring-white/70 scale-[1.02]`; cards inativos ficam com `opacity-70` quando há filtro ativo.
+5. Incluir `statusFilter` em `hasActiveFilters` e no botão "Limpar Filtros" (resetar para `all`).
 
-Detalhes:
-- O card Teto passa a comparar com o Previsto (não com o Já Gasto), para alertar antes do estouro.
-- Grid passa de 5 para 7 colunas em telas grandes (`xl:grid-cols-7`), 3 colunas em md, 2 em mobile, mantendo a estética atual com gradientes distintos para cada métrica.
-- A lógica reaproveita `filteredAndSorted` (que já respeita filtro de fatura, "somente próximas faturas" e demais filtros) e diferencia real vs virtual via flag `isVirtual` já existente em `virtualExpenses` e `subscriptionVirtuals`.
-
-Arquivo afetado: `src/pages/Index.tsx` (novo `useMemo` `gastoBreakdown` + substituição do bloco de cards de resumo).
+Como `chartData` deriva de `filteredAndSorted`, o dashboard segue automaticamente.
