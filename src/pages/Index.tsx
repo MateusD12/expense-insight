@@ -498,6 +498,18 @@ export default function Index() {
 
   const totalSpent = useMemo(() => filteredAndSorted.reduce((acc, e) => acc + Number(e.valor), 0), [filteredAndSorted]);
 
+  // Quebra do total da fatura: real (já caiu) vs virtual (parcelas/assinaturas a cair)
+  const gastoBreakdown = useMemo(() => {
+    let realizado = 0;
+    let aCair = 0;
+    for (const e of filteredAndSorted as any[]) {
+      const v = Number(e.valor) || 0;
+      if (e.isVirtual) aCair += v;
+      else realizado += v;
+    }
+    return { realizado, aCair, previsto: realizado + aCair };
+  }, [filteredAndSorted]);
+
   // Próxima fatura: calculate next month's total relative to selected fatura
   const proximaFatura = useMemo(() => {
     const baseFatura = filters.fatura !== "all" ? filters.fatura : faturaFoco;
@@ -805,17 +817,32 @@ export default function Index() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 sm:gap-4">
           <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
-              Total Gastos
+              Já Gasto
             </p>
-            <h2 className="text-xl sm:text-3xl font-black">{formatCurrency(totalSpent)}</h2>
+            <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(gastoBreakdown.realizado)}</h2>
+            <p className="text-[9px] font-bold opacity-70 mt-1">cobrado nesta fatura</p>
+          </div>
+          <div className="bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              A Cair
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(gastoBreakdown.aCair)}</h2>
+            <p className="text-[9px] font-bold opacity-70 mt-1">parcelas + assinaturas</p>
+          </div>
+          <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+            <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
+              Previsto Fatura
+            </p>
+            <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(gastoBreakdown.previsto)}</h2>
+            <p className="text-[9px] font-bold opacity-70 mt-1">total estimado</p>
           </div>
           <div
             className={cn(
               "text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg cursor-pointer transition-transform hover:scale-[1.02] border-none relative overflow-hidden",
-              budget === null ? "bg-slate-400" : totalSpent > budget ? "bg-red-500" : "bg-purple-600",
+              budget === null ? "bg-slate-400" : gastoBreakdown.previsto > budget ? "bg-red-500" : "bg-purple-600",
             )}
             onClick={() => {
               setTempBudget(budget || 0);
@@ -825,25 +852,25 @@ export default function Index() {
             <p className="text-[9px] sm:text-[10px] font-black uppercase opacity-90 tracking-widest mb-1">
               {budget !== null ? `Teto (${formatCurrency(budget)})` : "Sem Teto"}
             </p>
-            <h2 className="text-xl sm:text-3xl font-black">
-              {budget !== null ? formatCurrency(budget - totalSpent) : "Definir"}
+            <h2 className="text-xl sm:text-2xl font-black">
+              {budget !== null ? formatCurrency(budget - gastoBreakdown.previsto) : "Definir"}
             </h2>
           </div>
           <div className="bg-gradient-to-br from-emerald-400 to-emerald-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Transações</p>
-            <h2 className="text-xl sm:text-3xl font-black">{filteredAndSorted.length}</h2>
+            <h2 className="text-xl sm:text-2xl font-black">{filteredAndSorted.length}</h2>
           </div>
           <div className="bg-slate-800 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1 text-slate-300">
               Maior Categoria
             </p>
-            <h2 className="text-base sm:text-xl font-black truncate text-slate-50">{chartData.cats[0]?.name || "-"}</h2>
+            <h2 className="text-base sm:text-lg font-black truncate text-slate-50">{chartData.cats[0]?.name || "-"}</h2>
           </div>
           <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               Próx. Fatura ({proximaFatura.label})
             </p>
-            <h2 className="text-xl sm:text-3xl font-black">{formatCurrency(proximaFatura.total)}</h2>
+            <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(proximaFatura.total)}</h2>
           </div>
         </div>
 
