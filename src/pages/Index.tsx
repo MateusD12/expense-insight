@@ -828,21 +828,41 @@ export default function Index() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3 sm:gap-4">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+          <div
+            onClick={() => setStatusFilter((s) => (s === "realizado" ? "all" : "realizado"))}
+            className={cn(
+              "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]",
+              statusFilter === "realizado" && "ring-2 ring-white scale-[1.02]",
+              statusFilter !== "all" && statusFilter !== "realizado" && "opacity-60",
+            )}
+          >
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               Já Gasto
             </p>
             <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(gastoBreakdown.realizado)}</h2>
             <p className="text-[9px] font-bold opacity-70 mt-1">cobrado nesta fatura</p>
           </div>
-          <div className="bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+          <div
+            onClick={() => setStatusFilter((s) => (s === "aCair" ? "all" : "aCair"))}
+            className={cn(
+              "bg-gradient-to-br from-sky-400 to-cyan-500 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]",
+              statusFilter === "aCair" && "ring-2 ring-white scale-[1.02]",
+              statusFilter !== "all" && statusFilter !== "aCair" && "opacity-60",
+            )}
+          >
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               A Cair
             </p>
             <h2 className="text-xl sm:text-2xl font-black">{formatCurrency(gastoBreakdown.aCair)}</h2>
             <p className="text-[9px] font-bold opacity-70 mt-1">parcelas + assinaturas</p>
           </div>
-          <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden">
+          <div
+            onClick={() => setStatusFilter("all")}
+            className={cn(
+              "bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-lg border-none relative overflow-hidden cursor-pointer transition-all hover:scale-[1.02]",
+              statusFilter === "all" && "ring-2 ring-white scale-[1.02]",
+            )}
+          >
             <p className="text-[9px] sm:text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">
               Previsto Fatura
             </p>
