@@ -607,7 +607,8 @@ export default function Index() {
     filters.justificativa !== "all" ||
     filters.fatura !== faturaFoco ||
     filters.dataInicio !== "" ||
-    filters.dataFim !== "";
+    filters.dataFim !== "" ||
+    statusFilter !== "all";
 
   if (isCheckingAuth)
     return (
@@ -792,7 +793,7 @@ export default function Index() {
               <Button
                 variant="ghost"
                 className="text-red-500 font-bold h-10 sm:h-11"
-                onClick={() =>
+                onClick={() => {
                   setFilters({
                     search: "",
                     banco: "all",
@@ -802,8 +803,9 @@ export default function Index() {
                     fatura: faturaFoco,
                     dataInicio: "",
                     dataFim: "",
-                  })
-                }
+                  });
+                  setStatusFilter("all");
+                }}
               >
                 Limpar
               </Button>
