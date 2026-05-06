@@ -510,11 +510,13 @@ export default function Index() {
 
   // Quebra do total da fatura: real (já caiu) vs virtual (parcelas/assinaturas a cair)
   const gastoBreakdown = useMemo(() => {
+    const hojeISO = new Date().toISOString().slice(0, 10);
     let realizado = 0;
     let aCair = 0;
     for (const e of filteredAndSorted as any[]) {
       const v = Number(e.valor) || 0;
-      if (e.isVirtual) aCair += v;
+      const pending = !!e.isVirtual || (e.data && e.data > hojeISO);
+      if (pending) aCair += v;
       else realizado += v;
     }
     return { realizado, aCair, previsto: realizado + aCair };
