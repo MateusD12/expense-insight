@@ -424,10 +424,12 @@ export default function Index() {
     }
 
     // Filtro por status (cards Já Gasto / A Cair)
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    const isPending = (e: any) => !!e.isVirtual || (e.data && e.data > hojeISO);
     if (statusFilter === "realizado") {
-      result = result.filter((e: any) => !e.isVirtual);
+      result = result.filter((e: any) => !isPending(e));
     } else if (statusFilter === "aCair") {
-      result = result.filter((e: any) => e.isVirtual);
+      result = result.filter((e: any) => isPending(e));
     }
 
     result.sort((a: any, b: any) => {
