@@ -424,10 +424,12 @@ export default function Index() {
     }
 
     // Filtro por status (cards Já Gasto / A Cair)
+    const hojeISO = new Date().toISOString().slice(0, 10);
+    const isPending = (e: any) => !!e.isVirtual || (e.data && e.data > hojeISO);
     if (statusFilter === "realizado") {
-      result = result.filter((e: any) => !e.isVirtual);
+      result = result.filter((e: any) => !isPending(e));
     } else if (statusFilter === "aCair") {
-      result = result.filter((e: any) => e.isVirtual);
+      result = result.filter((e: any) => isPending(e));
     }
 
     result.sort((a: any, b: any) => {
@@ -508,11 +510,13 @@ export default function Index() {
 
   // Quebra do total da fatura: real (já caiu) vs virtual (parcelas/assinaturas a cair)
   const gastoBreakdown = useMemo(() => {
+    const hojeISO = new Date().toISOString().slice(0, 10);
     let realizado = 0;
     let aCair = 0;
     for (const e of filteredAndSorted as any[]) {
       const v = Number(e.valor) || 0;
-      if (e.isVirtual) aCair += v;
+      const pending = !!e.isVirtual || (e.data && e.data > hojeISO);
+      if (pending) aCair += v;
       else realizado += v;
     }
     return { realizado, aCair, previsto: realizado + aCair };
