@@ -515,7 +515,7 @@ export default function Index() {
     let aCair = 0;
     for (const e of filteredAndSorted as any[]) {
       const v = Number(e.valor) || 0;
-      const pending = !!e.isVirtual || (e.data && e.data > hojeISO);
+      const pending = !!e.isVirtual || (e.data && e.data.slice(0, 10) > hojeISO);
       if (pending) aCair += v;
       else realizado += v;
     }
