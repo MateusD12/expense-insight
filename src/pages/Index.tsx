@@ -413,7 +413,14 @@ export default function Index() {
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-      const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
+      // Quando "Somente próximas faturas" está ativo e o filtro está na fatura foco,
+      // mostramos TODAS as faturas a partir do foco (incluindo futuras já lançadas).
+      const faturaKey = e.fatura ? e.fatura.slice(0, 7) : "";
+      const showAllUpcoming = hideOlderThanFoco && filters.fatura === faturaFoco;
+      const matchFatura =
+        filters.fatura === "all" ||
+        showAllUpcoming ||
+        faturaKey === filters.fatura;
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
