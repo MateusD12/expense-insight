@@ -834,6 +834,11 @@ export default function Index() {
           {filters.fatura !== "all" && (
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">
               📋 Fatura de {formatFatura(filters.fatura)}
+              {hideOlderThanFoco && filters.fatura === faturaFoco && (
+                <span className="ml-2 text-purple-600 normal-case font-semibold tracking-normal">
+                  (mostrando todas a partir desta)
+                </span>
+              )}
             </span>
           )}
         </div>
