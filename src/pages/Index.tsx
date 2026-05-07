@@ -425,7 +425,7 @@ export default function Index() {
 
     // Filtro por status (cards Já Gasto / A Cair)
     const hojeISO = new Date().toISOString().slice(0, 10);
-    const isPending = (e: any) => !!e.isVirtual || (e.data && e.data > hojeISO);
+    const isPending = (e: any) => !!e.isVirtual || (e.data && e.data.slice(0, 10) > hojeISO);
     if (statusFilter === "realizado") {
       result = result.filter((e: any) => !isPending(e));
     } else if (statusFilter === "aCair") {
@@ -515,7 +515,7 @@ export default function Index() {
     let aCair = 0;
     for (const e of filteredAndSorted as any[]) {
       const v = Number(e.valor) || 0;
-      const pending = !!e.isVirtual || (e.data && e.data > hojeISO);
+      const pending = !!e.isVirtual || (e.data && e.data.slice(0, 10) > hojeISO);
       if (pending) aCair += v;
       else realizado += v;
     }
@@ -1203,12 +1203,15 @@ export default function Index() {
                     {filteredAndSorted.map((e: any) => {
                       const isVirtual = !!e.isVirtual;
                       const isSubscription = !!e.isSubscription;
+                      const hojeISO = new Date().toISOString().slice(0, 10);
+                      const isPendingReal = !isVirtual && e.data && e.data.slice(0, 10) > hojeISO;
+                      const showAsPending = isVirtual || isPendingReal;
                       return (
                       <TableRow
                         key={e.id}
                         className={cn(
                           "hover:bg-blue-50/50 transition-colors",
-                          isVirtual && !isSubscription && "bg-slate-50/40",
+                          showAsPending && !isSubscription && "bg-slate-50/40",
                           isSubscription && "bg-indigo-50/30",
                         )}
                       >
@@ -1226,10 +1229,15 @@ export default function Index() {
                           <div className="flex items-center gap-1.5">
                             {isSubscription ? (
                               <Repeat size={12} className="text-indigo-500" />
-                            ) : isVirtual ? (
+                            ) : showAsPending ? (
                               <Sparkles size={12} className="text-purple-400" />
                             ) : null}
                             {e.despesa}
+                            {showAsPending && !isSubscription && (
+                              <span className="text-[9px] font-black uppercase text-purple-500 italic ml-1">
+                                A Cair
+                              </span>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
