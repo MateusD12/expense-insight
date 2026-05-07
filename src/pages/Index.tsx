@@ -413,7 +413,14 @@ export default function Index() {
         e.justificativa?.toLowerCase().includes(filters.search.toLowerCase());
       const matchBanco = filters.banco === "all" || e.banco === filters.banco;
       const matchCat = filters.classificacao === "all" || e.classificacao === filters.classificacao;
-      const matchFatura = filters.fatura === "all" || (e.fatura ? e.fatura.slice(0, 7) : "all") === filters.fatura;
+      // Quando "Somente próximas faturas" está ativo e o filtro está na fatura foco,
+      // mostramos TODAS as faturas a partir do foco (incluindo futuras já lançadas).
+      const faturaKey = e.fatura ? e.fatura.slice(0, 7) : "";
+      const showAllUpcoming = hideOlderThanFoco && filters.fatura === faturaFoco;
+      const matchFatura =
+        filters.fatura === "all" ||
+        showAllUpcoming ||
+        faturaKey === filters.fatura;
 
       return matchSearch && matchBanco && matchCat && matchFatura;
     });
@@ -827,6 +834,11 @@ export default function Index() {
           {filters.fatura !== "all" && (
             <span className="text-xs font-black uppercase tracking-widest text-slate-500">
               📋 Fatura de {formatFatura(filters.fatura)}
+              {hideOlderThanFoco && filters.fatura === faturaFoco && (
+                <span className="ml-2 text-purple-600 normal-case font-semibold tracking-normal">
+                  (mostrando todas a partir desta)
+                </span>
+              )}
             </span>
           )}
         </div>
