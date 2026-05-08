@@ -759,7 +759,7 @@ export default function Index() {
             </Button>
           </div>
           {showFilters && (
-            <div className="pt-3 border-t border-slate-100 mt-1 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="pt-3 border-t border-slate-100 mt-1 grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-3 animate-in fade-in slide-in-from-top-4 duration-300">
               <Select value={filters.fatura} onValueChange={(v) => setFilters((f) => ({ ...f, fatura: v }))}>
                 <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
                   <SelectValue placeholder="Faturas" />
@@ -773,7 +773,7 @@ export default function Index() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v }))}>
+              <Select value={filters.banco} onValueChange={(v) => setFilters((f) => ({ ...f, banco: v, cartao: "all" }))}>
                 <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
                   <SelectValue placeholder="Bancos" />
                 </SelectTrigger>
@@ -782,6 +782,24 @@ export default function Index() {
                   {unique("banco").map((f) => (
                     <SelectItem key={f} value={f}>
                       {f}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filters.cartao} onValueChange={(v) => setFilters((f) => ({ ...f, cartao: v }))}>
+                <SelectTrigger className="w-full h-10 sm:h-11 bg-slate-50 border-none font-bold text-xs">
+                  <SelectValue placeholder="Cartões" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos Cartões</SelectItem>
+                  {[...new Set(
+                    expenses
+                      .filter((e) => filters.banco === "all" || e.banco === filters.banco)
+                      .map((e) => e.cartao)
+                      .filter(Boolean) as string[]
+                  )].sort().map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
                     </SelectItem>
                   ))}
                 </SelectContent>
