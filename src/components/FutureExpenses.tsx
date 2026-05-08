@@ -371,6 +371,21 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
           </TableBody>
         </Table>
       </div>
+      {editingVirtual && (
+        <ExpenseForm
+          open={!!editingVirtual}
+          onOpenChange={(o) => !o && setEditingVirtual(null)}
+          initialData={
+            {
+              ...editingVirtual,
+              // garantir formatos esperados pelo form
+              data: editingVirtual.data || new Date().toISOString().slice(0, 10),
+              fatura: editingVirtual.fatura,
+            } as any
+          }
+          onSubmit={handleSaveEditedVirtual}
+        />
+      )}
     </div>
   );
 }
