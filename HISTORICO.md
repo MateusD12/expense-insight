@@ -12,3 +12,10 @@ Este arquivo mantém um registro das alterações e problemas resolvidos neste p
 - **Duplicação Resolvida:** Corrigido o gerador de faturas virtuais (`virtualExpenses`) que não estava rastreando as parcelas recém-geradas no ciclo. Adicionado `existingKeys.add(key)` para evitar a duplicação em cascata de parcelas baseadas em entradas reais.
 - **Edição de Faturas Seguintes (Projeções/Virtuais):** O botão de editar (lápis) agora fica habilitado para as despesas virtuais ("A Cair"). Ao editar e salvar, o sistema materializa essa parcela no banco de dados como uma despesa real (utilizando `addExpense`), permitindo que a data ou fatura sejam modificadas de acordo com as necessidades (ex: adiantamentos). 
 - **Pagamento Adiantado ("a Cair" resolvido):** Agora que é possível editar projeções virtuais de faturas adiantadas (como da Alura), o usuário pode editá-las e salvá-las na fatura correspondente. O sistema entenderá que ela agora é uma despesa real materializada e a removerá da fila de faturas "Virtuais/A Cair".
+
+## [Concluído] 08/05/2026 - Instalação de PWA
+**Adições e Configurações:**
+- **App Instalável (PWA):** O projeto foi atualizado para suportar a instalação como um PWA (Progressive Web App) e uso offline/acesso rápido.
+- **Configuração do Vite:** O arquivo `vite.config.ts` foi configurado com opções avançadas do `vite-plugin-pwa` (habilitando `injectRegister: "auto"` e ícones).
+- **Prompt de Download:** Modificado o componente `PWAPrompt` para aparecer no canto inferior direito da tela como solicitado ("canto inferior da tela"), informando o usuário sobre a possibilidade de instalar o aplicativo.
+- **Ícone:** O manifest espera por um arquivo `icon.png` em `public/`. **Nota:** Não foi possível encontrar a "imagem em anexo" no meu diretório. Por favor, certifique-se de salvar sua imagem desejada na pasta `public/` com o nome exato `icon.png` (ou `icon.svg` desde que seja atualizado no `vite.config.ts`) para que seja usada como ícone do app.

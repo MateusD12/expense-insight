@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import { PWAPrompt } from "@/components/PWAPrompt";
 
 const queryClient = new QueryClient();
 
@@ -13,6 +14,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <PWAPrompt />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
