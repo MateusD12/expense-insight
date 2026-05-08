@@ -132,7 +132,7 @@ export default function Index() {
     direction: "desc",
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [hideOlderThanFoco, setHideOlderThanFoco] = useState(true);
+  const [hideOlderThanFoco, setHideOlderThanFoco] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "realizado" | "aCair">("all");
   const [chartPeriod, setChartPeriod] = useState("6m");
 
