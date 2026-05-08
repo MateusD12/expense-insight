@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type Expense, useExpenses } from "@/hooks/useExpenses";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
+import { Undo2, FastForward, Sparkles, Repeat, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { resolveFatura, type InvoiceCutoff } from "@/lib/faturaResolver";
+import { resolveFatura, getFaturaAtual, type InvoiceCutoff } from "@/lib/faturaResolver";
+import { ExpenseForm } from "@/components/ExpenseForm";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
@@ -23,9 +25,11 @@ const SUBSCRIPTION_PROJECTION_MONTHS = 6;
 
 export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
-  const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
+  const { advanceInstallment, revertInstallment, addExpense, bulkAddExpenses } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
+  const [editingVirtual, setEditingVirtual] = useState<VirtualExpense | null>(null);
+  const materializedRef = useRef<Set<string>>(new Set());
 
   const futureExpenses = useMemo<VirtualExpense[]>(() => {
     const result: VirtualExpense[] = [];
@@ -137,6 +141,52 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
     );
   }, [futureExpenses, faturaFilter, despesaFilter]);
 
+  // Auto-materializar parcelas virtuais cuja fatura já chegou (<= fatura foco).
+  // Aplica-se apenas a parcelas (não assinaturas).
+  useEffect(() => {
+    const faturaFoco = getFaturaAtual(cutoffs).slice(0, 7);
+    const toMaterialize = futureExpenses.filter(
+      (e) =>
+        e.isVirtual &&
+        !e.isSubscription &&
+        e.sourceExpenseId &&
+        e.fatura &&
+        e.fatura.slice(0, 7) <= faturaFoco,
+    );
+    if (toMaterialize.length === 0) return;
+
+    const fresh = toMaterialize.filter((e) => !materializedRef.current.has(e.id));
+    if (fresh.length === 0) return;
+
+    fresh.forEach((e) => materializedRef.current.add(e.id));
+
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const payloads = fresh
+        .map((e) => {
+          const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
+          if (!source) return null;
+          return {
+            banco: source.banco,
+            cartao: source.cartao,
+            valor: source.valor,
+            data: source.data,
+            parcela: e.parcela,
+            total_parcela: e.total_parcela,
+            despesa: source.despesa,
+            justificativa: source.justificativa,
+            classificacao: source.classificacao,
+            fatura: e.fatura,
+            fatura_original: null,
+            user_id: user.id,
+          } as any;
+        })
+        .filter(Boolean) as any[];
+      if (payloads.length > 0) bulkAddExpenses.mutate(payloads);
+    })();
+  }, [futureExpenses, cutoffs, expenses, bulkAddExpenses]);
+
   const handleAdvanceVirtual = (e: VirtualExpense) => {
     // Find the source expense to copy all fields
     const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
@@ -160,6 +210,29 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
       fatura: currentMonthFatura,
       fatura_original: e.fatura,
     });
+  };
+
+  // Materializar uma parcela virtual com edições do usuário (data/fatura/valor/etc).
+  const handleSaveEditedVirtual = async (data: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    addExpense.mutate(
+      {
+        banco: data.banco,
+        cartao: data.cartao,
+        valor: Number(data.valor),
+        data: data.data,
+        parcela: data.parcela,
+        total_parcela: data.total_parcela,
+        despesa: data.despesa,
+        justificativa: data.justificativa,
+        classificacao: data.classificacao,
+        fatura: data.fatura ? (data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura) : null,
+        fatura_original: null,
+        user_id: user.id,
+      } as any,
+      { onSuccess: () => setEditingVirtual(null) },
+    );
   };
 
   return (
@@ -262,14 +335,25 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                         <Undo2 size={14} className="mr-1" /> Reverter
                       </Button>
                     ) : e.isVirtual ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-purple-600 font-bold text-xs h-8"
-                        onClick={() => handleAdvanceVirtual(e)}
-                      >
-                        <FastForward size={14} className="mr-1" /> Adiantar
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-purple-600 font-bold text-xs h-8"
+                          onClick={() => handleAdvanceVirtual(e)}
+                        >
+                          <FastForward size={14} className="mr-1" /> Adiantar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-600 font-bold text-xs h-8 px-2"
+                          onClick={() => setEditingVirtual(e)}
+                          title="Editar parcela futura"
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         variant="ghost"
@@ -287,6 +371,21 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
           </TableBody>
         </Table>
       </div>
+      {editingVirtual && (
+        <ExpenseForm
+          open={!!editingVirtual}
+          onOpenChange={(o) => !o && setEditingVirtual(null)}
+          initialData={
+            {
+              ...editingVirtual,
+              // garantir formatos esperados pelo form
+              data: editingVirtual.data || new Date().toISOString().slice(0, 10),
+              fatura: editingVirtual.fatura,
+            } as any
+          }
+          onSubmit={handleSaveEditedVirtual}
+        />
+      )}
     </div>
   );
 }
