@@ -314,6 +314,8 @@ export default function Index() {
         const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
         if (existingKeys.has(key)) continue;
 
+        existingKeys.add(key);
+
         const futuraFatura = addMonths(faturaDate, i);
         const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
 
@@ -1283,23 +1285,24 @@ export default function Index() {
                         </TableCell>
                         <TableCell className="text-xs truncate max-w-[150px]">{e.justificativa || "-"}</TableCell>
                         <TableCell>
-                          {isVirtual ? (
-                            <span className="text-[9px] font-bold uppercase text-slate-400 italic">
-                              {isSubscription ? "Recorrente" : "Projeção"}
-                            </span>
-                          ) : (
-                            <div className="flex gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-blue-500"
-                                onClick={() => {
-                                  setEditing(e);
-                                  setFormOpen(true);
-                                }}
-                              >
-                                <Pencil size={14} />
-                              </Button>
+                          <div className="flex gap-1 items-center">
+                            {isVirtual && (
+                              <span className="text-[9px] font-bold uppercase text-slate-400 italic mr-2">
+                                {isSubscription ? "Recorrente" : "Projeção"}
+                              </span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-500"
+                              onClick={() => {
+                                setEditing(e);
+                                setFormOpen(true);
+                              }}
+                            >
+                              <Pencil size={14} />
+                            </Button>
+                            {!isVirtual && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1308,8 +1311,8 @@ export default function Index() {
                               >
                                 <Trash2 size={14} />
                               </Button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       );
@@ -1377,15 +1380,24 @@ export default function Index() {
               fatura_original: data.fatura_original || null,
               user_id: session.user.id,
             };
-            updateExpense.mutate(
-              { id: editing.id, ...payload },
-              {
+            if ((editing as any).isVirtual) {
+              addExpense.mutate(payload, {
                 onSuccess: () => {
-                  toast.success("Atualizado!");
+                  toast.success("Despesa materializada!");
                   setFormOpen(false);
                 },
-              },
-            );
+              });
+            } else {
+              updateExpense.mutate(
+                { id: editing.id, ...payload },
+                {
+                  onSuccess: () => {
+                    toast.success("Atualizado!");
+                    setFormOpen(false);
+                  },
+                },
+              );
+            }
           } else if (totalParcelas > 1 && baseFatura) {
             // Generate N installment records
             const [year, month] = baseFatura.split("-").map(Number);
