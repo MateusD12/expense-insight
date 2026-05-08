@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type Expense, useExpenses } from "@/hooks/useExpenses";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Undo2, FastForward, Sparkles, Repeat } from "lucide-react";
+import { Undo2, FastForward, Sparkles, Repeat, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { resolveFatura, type InvoiceCutoff } from "@/lib/faturaResolver";
+import { resolveFatura, getFaturaAtual, type InvoiceCutoff } from "@/lib/faturaResolver";
+import { ExpenseForm } from "@/components/ExpenseForm";
+import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
