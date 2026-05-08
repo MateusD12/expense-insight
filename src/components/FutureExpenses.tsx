@@ -335,14 +335,25 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                         <Undo2 size={14} className="mr-1" /> Reverter
                       </Button>
                     ) : e.isVirtual ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-purple-600 font-bold text-xs h-8"
-                        onClick={() => handleAdvanceVirtual(e)}
-                      >
-                        <FastForward size={14} className="mr-1" /> Adiantar
-                      </Button>
+                      <div className="flex items-center justify-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-purple-600 font-bold text-xs h-8"
+                          onClick={() => handleAdvanceVirtual(e)}
+                        >
+                          <FastForward size={14} className="mr-1" /> Adiantar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-slate-600 font-bold text-xs h-8 px-2"
+                          onClick={() => setEditingVirtual(e)}
+                          title="Editar parcela futura"
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                      </div>
                     ) : (
                       <Button
                         variant="ghost"
