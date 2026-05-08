@@ -25,9 +25,11 @@ const SUBSCRIPTION_PROJECTION_MONTHS = 6;
 
 export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
-  const { advanceInstallment, revertInstallment, addExpense } = useExpenses();
+  const { advanceInstallment, revertInstallment, addExpense, bulkAddExpenses } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
+  const [editingVirtual, setEditingVirtual] = useState<VirtualExpense | null>(null);
+  const materializedRef = useRef<Set<string>>(new Set());
 
   const futureExpenses = useMemo<VirtualExpense[]>(() => {
     const result: VirtualExpense[] = [];
