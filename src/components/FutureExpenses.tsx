@@ -141,6 +141,52 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
     );
   }, [futureExpenses, faturaFilter, despesaFilter]);
 
+  // Auto-materializar parcelas virtuais cuja fatura já chegou (<= fatura foco).
+  // Aplica-se apenas a parcelas (não assinaturas).
+  useEffect(() => {
+    const faturaFoco = getFaturaAtual(cutoffs).slice(0, 7);
+    const toMaterialize = futureExpenses.filter(
+      (e) =>
+        e.isVirtual &&
+        !e.isSubscription &&
+        e.sourceExpenseId &&
+        e.fatura &&
+        e.fatura.slice(0, 7) <= faturaFoco,
+    );
+    if (toMaterialize.length === 0) return;
+
+    const fresh = toMaterialize.filter((e) => !materializedRef.current.has(e.id));
+    if (fresh.length === 0) return;
+
+    fresh.forEach((e) => materializedRef.current.add(e.id));
+
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const payloads = fresh
+        .map((e) => {
+          const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
+          if (!source) return null;
+          return {
+            banco: source.banco,
+            cartao: source.cartao,
+            valor: source.valor,
+            data: source.data,
+            parcela: e.parcela,
+            total_parcela: e.total_parcela,
+            despesa: source.despesa,
+            justificativa: source.justificativa,
+            classificacao: source.classificacao,
+            fatura: e.fatura,
+            fatura_original: null,
+            user_id: user.id,
+          } as any;
+        })
+        .filter(Boolean) as any[];
+      if (payloads.length > 0) bulkAddExpenses.mutate(payloads);
+    })();
+  }, [futureExpenses, cutoffs, expenses, bulkAddExpenses]);
+
   const handleAdvanceVirtual = (e: VirtualExpense) => {
     // Find the source expense to copy all fields
     const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
@@ -164,6 +210,29 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
       fatura: currentMonthFatura,
       fatura_original: e.fatura,
     });
+  };
+
+  // Materializar uma parcela virtual com edições do usuário (data/fatura/valor/etc).
+  const handleSaveEditedVirtual = async (data: any) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    addExpense.mutate(
+      {
+        banco: data.banco,
+        cartao: data.cartao,
+        valor: Number(data.valor),
+        data: data.data,
+        parcela: data.parcela,
+        total_parcela: data.total_parcela,
+        despesa: data.despesa,
+        justificativa: data.justificativa,
+        classificacao: data.classificacao,
+        fatura: data.fatura ? (data.fatura.length === 7 ? `${data.fatura}-01` : data.fatura) : null,
+        fatura_original: null,
+        user_id: user.id,
+      } as any,
+      { onSuccess: () => setEditingVirtual(null) },
+    );
   };
 
   return (
