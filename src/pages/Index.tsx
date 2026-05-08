@@ -793,7 +793,7 @@ export default function Index() {
                 <SelectContent>
                   <SelectItem value="all">Todos Cartões</SelectItem>
                   {[...new Set(
-                    expenses
+                    allExpenses
                       .filter((e) => filters.banco === "all" || e.banco === filters.banco)
                       .map((e) => e.cartao)
                       .filter(Boolean) as string[]
