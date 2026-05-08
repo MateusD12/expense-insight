@@ -614,6 +614,7 @@ export default function Index() {
 
   const hasActiveFilters =
     filters.banco !== "all" ||
+    filters.cartao !== "all" ||
     filters.classificacao !== "all" ||
     filters.justificativa !== "all" ||
     filters.fatura !== faturaFoco ||
