@@ -1,3 +1,8 @@
+# INSTRUÇÕES PARA O MODELO (LEIA PRIMEIRO)
+**ATENÇÃO:** Sempre que este projeto for aberto, leia este bloco primeiro.
+- **Contexto PWA:** O pop-up de PWA foi configurado para aparecer na parte inferior central da tela, garantindo que o usuário veja a opção de baixar/instalar o aplicativo.
+- **Regras Padrão:** Sempre atualize o histórico após completar uma task ou fazer alterações significativas. Mantenha essas instruções no topo do arquivo.
+
 # Histórico de Alterações - App Financeiro
 
 Este arquivo mantém um registro das alterações e problemas resolvidos neste projeto, para dar contexto em futuras sessões de chat.
