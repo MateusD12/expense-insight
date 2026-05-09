@@ -1,7 +1,11 @@
-# INSTRUÇÕES PARA O MODELO (LEIA PRIMEIRO)
-**ATENÇÃO:** Sempre que este projeto for aberto, leia este bloco primeiro.
-- **Contexto PWA:** O pop-up de PWA foi configurado para aparecer na parte inferior central da tela, garantindo que o usuário veja a opção de baixar/instalar o aplicativo.
-- **Regras Padrão:** Sempre atualize o histórico após completar uma task ou fazer alterações significativas. Mantenha essas instruções no topo do arquivo.
+# INSTRUÇÕES PARA O MODELO (LEIA PRIMEIRO E SEMPRE SIGA ESTAS REGRAS)
+
+**ATENÇÃO:** Sempre que este projeto for aberto ou uma nova interação começar, siga estritamente a ordem abaixo:
+
+1. **PRIMEIRA AÇÃO OBRIGATÓRIA:** Você DEVE ler este arquivo (`HISTORICO.md`) antes de fazer qualquer outra coisa. Ele é a principal fonte de contexto do projeto.
+2. **ATUALIZAÇÃO CONTÍNUA:** Conforme você for desenvolvendo ou resolvendo problemas, vá documentando neste arquivo os passos tomados. Não espere até o final para fazer um grande resumo, vá salvando o progresso para não perder o raciocínio em caso de falha.
+3. **SALVAMENTO CONSTANTE (GIT COMMIT):** Sempre que concluir uma alteração lógica ou completar uma funcionalidade/correção, você DEVE fazer o commit das suas alterações (`git add .` e `git commit -m "..."`). Deixe o código sempre salvo no versionamento.
+4. **ÚLTIMA AÇÃO OBRIGATÓRIA:** Ao finalizar o pedido do usuário, verifique se o histórico foi atualizado com a conclusão da task. A sua última ação deve ser sempre garantir que este arquivo reflete as últimas mudanças do sistema e que elas estão commitadas.
 
 # Histórico de Alterações - App Financeiro
 
