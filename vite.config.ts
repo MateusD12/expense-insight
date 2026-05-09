@@ -22,18 +22,26 @@ export default defineConfig(({ mode }) => ({
       devOptions: {
         enabled: true,
       },
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
+      includeAssets: ["favicon.ico", "mask-icon.svg", "icon.svg"],
       manifest: {
         name: "Expense Insight",
         short_name: "Expenses",
         description: "Controle Financeiro Pessoal",
-        theme_color: "#ffffff",
+        theme_color: "#0c1c3a",
+        background_color: "#0c1c3a",
+        display: "standalone",
         icons: [
           {
-            src: "icon.png",
-            sizes: "512x512",
-            type: "image/png",
-            purpose: "any maskable",
+            src: "icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "any",
+          },
+          {
+            src: "mask-icon.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "maskable",
           },
         ],
       },
