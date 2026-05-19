@@ -11,10 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Plus, Calculator } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Calculator } from "lucide-react";
+import { ComboSelect } from "@/components/ui/ComboSelect";
 import { addMonths, format, parseISO } from "date-fns";
 import { useInvoiceCutoffs } from "@/hooks/useInvoiceCutoffs";
 import { resolveFatura } from "@/lib/faturaResolver";
@@ -122,56 +120,6 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
   const getUnique = (key: keyof Expense) =>
     Array.from(new Set(allExpenses.map((e) => e[key]).filter(Boolean))).sort() as string[];
 
-  const ComboboxField = ({ label, value, options, onChange }: any) => {
-    const [openCombo, setOpenCombo] = useState(false);
-    const [searchValue, setSearchValue] = useState("");
-    return (
-      <div className="space-y-2 flex flex-col w-full">
-        <Label className="text-[10px] font-black text-slate-500 uppercase">{label}</Label>
-        <Popover open={openCombo} onOpenChange={setOpenCombo}>
-          <PopoverTrigger asChild>
-            <Button variant="outline" className="w-full justify-between bg-slate-50 border-slate-200">
-              <span className="truncate">{value || "Selecionar..."}</span>
-              <ChevronsUpDown className="h-4 w-4 opacity-50 shrink-0" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-            <Command>
-              <CommandInput placeholder={`Buscar...`} onValueChange={setSearchValue} />
-              <CommandList>
-                <CommandEmpty className="p-2">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-blue-600"
-                    onClick={() => {
-                      onChange(searchValue);
-                      setOpenCombo(false);
-                    }}
-                  >
-                    <Plus className="mr-2 h-4 w-4" /> Add "{searchValue}"
-                  </Button>
-                </CommandEmpty>
-                <CommandGroup>
-                  {options.map((o: string) => (
-                    <CommandItem
-                      key={o}
-                      onSelect={() => {
-                        onChange(o);
-                        setOpenCombo(false);
-                      }}
-                    >
-                      <Check className={cn("mr-2 h-4 w-4", value === o ? "opacity-100" : "opacity-0")} /> {o}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-    );
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] rounded-2xl max-h-[90vh] overflow-y-auto">
@@ -215,7 +163,7 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
               />
             </div>
           </div>
-          <ComboboxField
+          <ComboSelect
             label="Despesa / Estabelecimento"
             value={formData.despesa}
             options={getUnique("despesa")}
@@ -243,13 +191,13 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <ComboboxField
+            <ComboSelect
               label="Banco"
               value={formData.banco}
               options={getUnique("banco")}
               onChange={(v: any) => setFormData({ ...formData, banco: v })}
             />
-            <ComboboxField
+            <ComboSelect
               label="Cartão"
               value={formData.cartao}
               options={getUnique("cartao")}
@@ -257,13 +205,13 @@ export function ExpenseForm({ open, onOpenChange, initialData, onSubmit }: Expen
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <ComboboxField
+            <ComboSelect
               label="Categoria"
               value={formData.classificacao}
               options={getUnique("classificacao")}
               onChange={(v: any) => setFormData({ ...formData, classificacao: v })}
             />
-            <ComboboxField
+            <ComboSelect
               label="Justificativa"
               value={formData.justificativa}
               options={getUnique("justificativa")}

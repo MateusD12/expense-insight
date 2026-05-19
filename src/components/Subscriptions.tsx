@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pause, Play, Pencil, Trash2, Sparkles, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ComboSelect } from "@/components/ui/ComboSelect";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
@@ -107,6 +108,9 @@ export function Subscriptions({ userId, expenses }: Props) {
       });
     }
   };
+
+  const getUnique = (key: keyof Expense) =>
+    Array.from(new Set(expenses.map((e) => e[key]).filter(Boolean))).sort() as string[];
 
   // Sugestões: despesas com classificação Assinatura/Assinaturas que ainda não foram cadastradas como subscription.
   const suggestions = useMemo(() => {
@@ -383,31 +387,25 @@ export function Subscriptions({ userId, expenses }: Props) {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-[10px] font-black uppercase">Banco</Label>
-                <Input
-                  value={form.banco}
-                  onChange={(e) => setForm({ ...form, banco: e.target.value })}
-                  className="bg-slate-50 border-none font-bold"
-                />
-              </div>
-              <div>
-                <Label className="text-[10px] font-black uppercase">Cartão (4 últimos)</Label>
-                <Input
-                  value={form.cartao}
-                  onChange={(e) => setForm({ ...form, cartao: e.target.value })}
-                  className="bg-slate-50 border-none font-bold"
-                />
-              </div>
-            </div>
-            <div>
-              <Label className="text-[10px] font-black uppercase">Justificativa</Label>
-              <Input
-                value={form.justificativa}
-                onChange={(e) => setForm({ ...form, justificativa: e.target.value })}
-                className="bg-slate-50 border-none font-bold"
+              <ComboSelect
+                label="Banco"
+                value={form.banco}
+                options={getUnique("banco")}
+                onChange={(v) => setForm({ ...form, banco: v })}
+              />
+              <ComboSelect
+                label="Cartão (4 últimos)"
+                value={form.cartao}
+                options={getUnique("cartao")}
+                onChange={(v) => setForm({ ...form, cartao: v })}
               />
             </div>
+            <ComboSelect
+              label="Justificativa"
+              value={form.justificativa}
+              options={getUnique("justificativa")}
+              onChange={(v) => setForm({ ...form, justificativa: v })}
+            />
           </div>
           <DialogFooter>
             <Button onClick={handleSave} className="w-full bg-indigo-600 font-black h-12 rounded-2xl">
