@@ -19,6 +19,23 @@ export default defineConfig(() => ({
       devOptions: {
         enabled: true,
       },
+      workbox: {
+        // Força o novo SW a assumir imediatamente sem esperar fechar o app
+        skipWaiting: true,
+        clientsClaim: true,
+        // Dados do Supabase nunca vêm do cache — sempre da rede
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "supabase-api",
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
+            },
+          },
+        ],
+      },
       includeAssets: ["favicon.ico", "icon.svg", "apple-touch-icon-180x180.png"],
       manifest: {
         name: "Expense Insight",
