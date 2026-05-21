@@ -210,6 +210,23 @@ export default function Index() {
     }
   };
 
+  const handleRecovery = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsAuthLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
+        redirectTo: `${window.location.origin}?mode=reset`,
+      });
+      if (error) throw error;
+      toast.success("Link de recuperação enviado! Verifique seu e-mail.");
+      setAuthMode("login");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -296,7 +313,7 @@ export default function Index() {
   // Generate virtual future installments from parceladas
   const virtualExpenses = useMemo(() => {
     const result: (Expense & { isVirtual?: boolean })[] = [];
-    const existingKeys = new Set(normalizedExpenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`));
+    const existingKeys = new Set(normalizedExpenses.map((e) => `${e.id}_${e.parcela}`));
 
     for (const e of normalizedExpenses) {
       const totalParcelas = e.total_parcela || 0;
@@ -311,9 +328,8 @@ export default function Index() {
 
       for (let i = 1; i <= remainingCount; i++) {
         const futureParcela = currentParcela + i;
-        const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
+        const key = `${e.id}_${futureParcela}`;
         if (existingKeys.has(key)) continue;
-
         existingKeys.add(key);
 
         const futuraFatura = addMonths(faturaDate, i);
@@ -655,31 +671,68 @@ export default function Index() {
                 <span className="bg-white px-2">Ou E-mail</span>
               </div>
             </div>
-            <form onSubmit={handleAuth} className="space-y-4">
-              <Input
-                type="email"
-                placeholder="E-mail"
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                required
-                className="h-12 border-slate-200"
-              />
-              <Input
-                type="password"
-                placeholder="Senha"
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                required
-                className="h-12 border-slate-200"
-              />
-              <Button
-                type="submit"
-                disabled={isAuthLoading}
-                className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
-              >
-                {authMode === "login" ? "Entrar" : "Cadastrar"}
-              </Button>
-            </form>
+            {authMode === "recovery" ? (
+              <form onSubmit={handleRecovery} className="space-y-4">
+                <Input
+                  type="email"
+                  placeholder="E-mail cadastrado"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                  className="h-12 border-slate-200"
+                />
+                <Button
+                  type="submit"
+                  disabled={isAuthLoading}
+                  className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
+                >
+                  Enviar link de recuperação
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("login")}
+                  className="w-full text-xs text-slate-500 hover:text-slate-700 font-bold"
+                >
+                  Voltar ao login
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleAuth} className="space-y-4">
+                <Input
+                  type="email"
+                  placeholder="E-mail"
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  required
+                  className="h-12 border-slate-200"
+                />
+                <Input
+                  type="password"
+                  placeholder="Senha"
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  required
+                  className="h-12 border-slate-200"
+                />
+                <Button
+                  type="submit"
+                  disabled={isAuthLoading}
+                  className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
+                >
+                  {authMode === "login" ? "Entrar" : "Cadastrar"}
+                </Button>
+                <div className="flex justify-between text-xs font-bold text-slate-500">
+                  <button type="button" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")} className="hover:text-slate-700">
+                    {authMode === "login" ? "Criar conta" : "Já tenho conta"}
+                  </button>
+                  {authMode === "login" && (
+                    <button type="button" onClick={() => setAuthMode("recovery")} className="hover:text-slate-700">
+                      Esqueci a senha
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
           </div>
         </div>
       </div>

@@ -21,7 +21,7 @@ interface VirtualExpense extends Expense {
   sourceExpenseId?: string;
 }
 
-const SUBSCRIPTION_PROJECTION_MONTHS = 6;
+const SUBSCRIPTION_PROJECTION_MONTHS = 12;
 
 export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
@@ -33,8 +33,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
 
   const futureExpenses = useMemo<VirtualExpense[]>(() => {
     const result: VirtualExpense[] = [];
-    // Set of existing real expense keys to avoid duplicates: "sourceId_parcela"
-    const existingKeys = new Set(expenses.map((e) => `${e.despesa}_${e.parcela}_${e.total_parcela}`));
+    const existingKeys = new Set(expenses.map((e) => `${e.id}_${e.parcela}`));
 
     for (const e of expenses) {
       const totalParcelas = e.total_parcela || 0;
@@ -50,9 +49,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
 
       for (let i = 1; i <= remainingCount; i++) {
         const futureParcela = currentParcela + i;
-        const key = `${e.despesa}_${futureParcela}_${totalParcelas}`;
-
-        // Skip if a real record already exists for this installment
+        const key = `${e.id}_${futureParcela}`;
         if (existingKeys.has(key)) continue;
 
         const futuraFatura = addMonths(faturaDate, i);
@@ -187,16 +184,9 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
     })();
   }, [futureExpenses, cutoffs, expenses, bulkAddExpenses]);
 
-  const handleAdvanceVirtual = (e: VirtualExpense) => {
-    // Find the source expense to copy all fields
+  const handleAdvanceVirtual = (e: VirtualExpense, targetFatura: string) => {
     const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
     if (!source) return;
-
-    // "Fatura atual" no app é a próxima do mês corrente
-    const now = new Date();
-    const target = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const currentMonthFatura = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-01`;
-
     addExpense.mutate({
       banco: source.banco,
       cartao: source.cartao,
@@ -207,7 +197,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
       despesa: source.despesa,
       justificativa: source.justificativa,
       classificacao: source.classificacao,
-      fatura: currentMonthFatura,
+      fatura: targetFatura,
       fatura_original: e.fatura,
     });
   };
@@ -340,7 +330,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                           variant="ghost"
                           size="sm"
                           className="text-purple-600 font-bold text-xs h-8"
-                          onClick={() => handleAdvanceVirtual(e)}
+                          onClick={() => handleAdvanceVirtual(e, getFaturaAtual(cutoffs))}
                         >
                           <FastForward size={14} className="mr-1" /> Adiantar
                         </Button>
@@ -359,7 +349,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                         variant="ghost"
                         size="sm"
                         className="text-blue-600 font-bold text-xs h-8"
-                        onClick={() => advanceInstallment.mutate({ id: e.id, currentFatura: e.fatura! })}
+                        onClick={() => advanceInstallment.mutate({ id: e.id, currentFatura: e.fatura!, targetFatura: getFaturaAtual(cutoffs) })}
                       >
                         <FastForward size={14} className="mr-1" /> Adiantar
                       </Button>

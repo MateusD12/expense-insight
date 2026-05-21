@@ -11,6 +11,18 @@
 
 Este arquivo mantém um registro das alterações e problemas resolvidos neste projeto, para dar contexto em futuras sessões de chat.
 
+## [Concluído] 21/05/2026 - Correções de pipeline P0/P1
+
+**Problemas Corrigidos:**
+1. **[B1 — P0] Key de deduplicação de parcelas virtuais usava `despesa` como identificador**, causando colisão silenciosa entre compras diferentes com mesmo nome e mesmo total de parcelas. Corrigido para usar `${e.id}_${parcela}` em `Index.tsx` e `FutureExpenses.tsx`.
+2. **[B2 — P1] `advanceInstallment` ignorava os cortes do usuário**, hardcodando "mês seguinte" como fatura alvo. Agora recebe `targetFatura` como parâmetro e os chamadores passam `getFaturaAtual(cutoffs)`.
+3. **[B3 — P1] Inconsistência de projeção de assinaturas**: `Index.tsx` projetava 12 meses, `FutureExpenses.tsx` projetava 6. Unificado em 12 meses.
+4. **[B4 — P1] `authMode === "recovery"` sem implementação**: adicionado form de recuperação de senha via `supabase.auth.resetPasswordForEmail`, com link "Esqueci a senha" no form de login.
+5. **[C2 — P2] Código morto removido**: deletados `SummaryCards.tsx`, `RankedList.tsx`, `InvoiceImport.tsx` que nunca eram importados.
+
+**Arquivos alterados:** `src/hooks/useExpenses.ts`, `src/components/FutureExpenses.tsx`, `src/pages/Index.tsx`
+**Arquivos deletados:** `src/components/SummaryCards.tsx`, `src/components/RankedList.tsx`, `src/components/InvoiceImport.tsx`
+
 ## [Concluído] 08/05/2026 - Correções de Faturas e Despesas
 **Problemas Relatados:**
 1. Despesas ainda estão como "a Cair" e não há como alterar a data nas faturas seguintes.
