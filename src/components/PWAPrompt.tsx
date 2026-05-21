@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { X, Download, CheckCircle2 } from "lucide-react";
-import { toast } from "sonner";
 
 const DISMISS_KEY = "pwa-prompt-dismissed";
 
@@ -19,30 +18,22 @@ export function PWAPrompt() {
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      // só mostra o banner quando o navegador confirmou que pode instalar
+      setTimeout(() => setVisible(true), 800);
     };
     window.addEventListener("beforeinstallprompt", handler);
 
-    const timer = setTimeout(() => setVisible(true), 800);
-
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
-      clearTimeout(timer);
     };
   }, []);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) {
-      toast("Como instalar o app", {
-        description:
-          "No menu do navegador, toque em 'Instalar aplicativo' ou 'Adicionar à tela inicial'.",
-        duration: 6000,
-      });
-      return;
-    }
+    if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") dismiss();
     setDeferredPrompt(null);
+    if (outcome === "accepted") dismiss();
   };
 
   const dismiss = () => {
