@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { format, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Undo2, FastForward, Sparkles, Repeat, Pencil } from "lucide-react";
+import { Undo2, FastForward, Sparkles, Repeat, Pencil, CalendarX } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 import { cn } from "@/lib/utils";
 import { resolveFatura, getFaturaAtual, type InvoiceCutoff } from "@/lib/faturaResolver";
 import { ExpenseForm } from "@/components/ExpenseForm";
@@ -174,8 +175,13 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
           <TableBody>
             {filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-10 text-slate-400 font-bold italic">
-                  Nenhuma parcela futura encontrada.
+                <TableCell colSpan={5}>
+                  <EmptyState
+                    icon={CalendarX}
+                    title="Nenhuma parcela futura"
+                    description="Suas compras parceladas e assinaturas ativas aparecerão aqui"
+                    iconClassName="bg-purple-50"
+                  />
                 </TableCell>
               </TableRow>
             ) : (

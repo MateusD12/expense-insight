@@ -40,8 +40,11 @@ import {
   ArrowDown,
   Sparkles,
   Repeat,
+  Download,
+  PackageSearch,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { EmptyState } from "@/components/EmptyState";
 import {
   PieChart,
   Pie,
@@ -497,6 +500,24 @@ export default function Index() {
     ) : (
       <ArrowDown size={10} className="inline-block ml-1 text-blue-600" />
     );
+  };
+
+  const handleExportCSV = () => {
+    const headers = ["banco", "cartao", "valor", "data", "despesa", "classificacao", "justificativa", "parcela", "total_parcela", "fatura"];
+    const rows = filteredAndSorted.map((e: any) => headers.map((h) => {
+      const v = e[h];
+      if (h === "fatura" && v) return v.substring(0, 7);
+      if (typeof v === "string" && (v.includes(";") || v.includes('"'))) return `"${v.replace(/"/g, '""')}"`;
+      return v ?? "";
+    }).join(";"));
+    const csv = [headers.join(";"), ...rows].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gastos_${filters.fatura !== "all" ? filters.fatura : "todos"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const truncateLabel = (text: string, limit: number = 14) => {
@@ -1076,6 +1097,21 @@ export default function Index() {
 
           <TabsContent value="tabela">
             <div className="bg-white rounded-2xl sm:rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  {filteredAndSorted.length} transaç{filteredAndSorted.length === 1 ? "ão" : "ões"}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-slate-500 font-bold text-xs h-8 gap-1.5 hover:text-blue-600"
+                  onClick={handleExportCSV}
+                  disabled={filteredAndSorted.length === 0}
+                >
+                  <Download size={14} />
+                  Exportar CSV
+                </Button>
+              </div>
               <div className="overflow-x-auto">
                 <Table className="min-w-[900px]">
                   <TableHeader className="bg-slate-50">
@@ -1097,7 +1133,18 @@ export default function Index() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredAndSorted.map((e: any) => {
+                    {filteredAndSorted.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8}>
+                          <EmptyState
+                            icon={PackageSearch}
+                            title="Nenhuma transação encontrada"
+                            description="Tente ajustar os filtros ou adicionar um novo gasto"
+                            iconClassName="bg-slate-100"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredAndSorted.map((e: any) => {
                       const isVirtual = !!e.isVirtual;
                       const isSubscription = !!e.isSubscription;
                       const hojeISO = new Date().toISOString().slice(0, 10);

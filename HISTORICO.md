@@ -11,6 +11,21 @@
 
 Este arquivo mantém um registro das alterações e problemas resolvidos neste projeto, para dar contexto em futuras sessões de chat.
 
+## [Concluído] 21/05/2026 - P3: remoção de `as any`, empty states, exportação CSV
+
+**O que foi feito:**
+- **[C3]** Hooks refatorados para usar tipos gerados pelo Supabase — eliminados todos os `as any`:
+  - `useExpenses.ts`: `Expense = Tables<"expenses">`, `ExpenseInsert/Update` via `TablesInsert/Update`
+  - `useSubscriptions.ts`: mesma abordagem para tabela `subscriptions`
+  - `useInvoiceCutoffs.ts`: `InvoiceCutoffInsert = TablesInsert<"invoice_cutoffs">`, campos selecionados explicitamente
+- **[U2]** Criado `src/components/EmptyState.tsx` — componente reutilizável com ícone, título, descrição e ação opcional
+  - Aplicado em `FutureExpenses.tsx` (nenhuma parcela futura)
+  - Aplicado em `Index.tsx` tab Tabela (nenhuma transação encontrada com os filtros atuais)
+- **[U3]** Exportação CSV adicionada à tab Tabela: botão "Exportar CSV" exporta exatamente o que está visível (filtros aplicados), com BOM UTF-8 para compatibilidade com Excel
+
+**Arquivos criados:** `src/components/EmptyState.tsx`
+**Arquivos alterados:** `src/hooks/useExpenses.ts`, `src/hooks/useSubscriptions.ts`, `src/hooks/useInvoiceCutoffs.ts`, `src/pages/Index.tsx`, `src/components/FutureExpenses.tsx`
+
 ## [Concluído] 21/05/2026 - Refatoração P2: hook compartilhado, AuthScreen, skeleton loading
 
 **O que foi feito:**

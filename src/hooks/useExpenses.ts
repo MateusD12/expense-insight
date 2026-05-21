@@ -1,23 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
-export interface Expense {
-  id: string;
-  banco: string;
-  cartao: string;
-  valor: number;
-  data: string | null;
-  parcela: number;
-  total_parcela: number;
-  despesa: string | null;
-  justificativa: string | null;
-  classificacao: string | null;
-  fatura: string | null;
-  fatura_original: string | null;
-  created_at: string;
-}
-
-export type ExpenseInsert = Omit<Expense, "id" | "created_at">;
+export type Expense = Tables<"expenses">;
+export type ExpenseInsert = TablesInsert<"expenses">;
+export type ExpenseUpdate = TablesUpdate<"expenses"> & { id: string };
 
 export function useExpenses() {
   const queryClient = useQueryClient();
@@ -31,13 +18,13 @@ export function useExpenses() {
         .order("fatura", { ascending: false })
         .order("data", { ascending: false });
       if (error) throw error;
-      return data as Expense[];
+      return data;
     },
   });
 
   const addExpense = useMutation({
     mutationFn: async (expense: ExpenseInsert) => {
-      const { error } = await supabase.from("expenses").insert(expense as any);
+      const { error } = await supabase.from("expenses").insert(expense);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
@@ -45,15 +32,15 @@ export function useExpenses() {
 
   const bulkAddExpenses = useMutation({
     mutationFn: async (expenses: ExpenseInsert[]) => {
-      const { error } = await supabase.from("expenses").insert(expenses as any[]);
+      const { error } = await supabase.from("expenses").insert(expenses);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
   });
 
   const updateExpense = useMutation({
-    mutationFn: async ({ id, ...expense }: Partial<Expense> & { id: string }) => {
-      const { error } = await supabase.from("expenses").update(expense as any).eq("id", id);
+    mutationFn: async ({ id, ...expense }: ExpenseUpdate) => {
+      const { error } = await supabase.from("expenses").update(expense).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["expenses"] }),
@@ -71,7 +58,7 @@ export function useExpenses() {
     mutationFn: async ({ id, currentFatura, targetFatura }: { id: string; currentFatura: string; targetFatura: string }) => {
       const { error } = await supabase
         .from("expenses")
-        .update({ fatura: targetFatura, fatura_original: currentFatura } as any)
+        .update({ fatura: targetFatura, fatura_original: currentFatura })
         .eq("id", id);
       if (error) throw error;
     },
@@ -82,7 +69,7 @@ export function useExpenses() {
     mutationFn: async ({ id, faturaOriginal }: { id: string; faturaOriginal: string }) => {
       const { error } = await supabase
         .from("expenses")
-        .update({ fatura: faturaOriginal, fatura_original: null } as any)
+        .update({ fatura: faturaOriginal, fatura_original: null })
         .eq("id", id);
       if (error) throw error;
     },

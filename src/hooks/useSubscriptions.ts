@@ -1,23 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 
-export interface Subscription {
-  id: string;
-  user_id: string;
-  nome: string;
-  valor: number;
-  dia_cobranca: number;
-  banco: string | null;
-  cartao: string | null;
-  classificacao: string | null;
-  justificativa: string | null;
-  paused: boolean;
-  last_generated_month: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export type SubscriptionInsert = Omit<Subscription, "id" | "created_at" | "updated_at">;
+export type Subscription = Tables<"subscriptions">;
+export type SubscriptionInsert = TablesInsert<"subscriptions">;
+export type SubscriptionUpdate = TablesUpdate<"subscriptions"> & { id: string };
 
 export function useSubscriptions() {
   const queryClient = useQueryClient();
@@ -26,28 +13,25 @@ export function useSubscriptions() {
     queryKey: ["subscriptions"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("subscriptions" as any)
+        .from("subscriptions")
         .select("*")
         .order("nome", { ascending: true });
       if (error) throw error;
-      return (data || []) as unknown as Subscription[];
+      return data;
     },
   });
 
   const addSubscription = useMutation({
-    mutationFn: async (sub: Partial<SubscriptionInsert>) => {
-      const { error } = await supabase.from("subscriptions" as any).insert(sub as any);
+    mutationFn: async (sub: SubscriptionInsert) => {
+      const { error } = await supabase.from("subscriptions").insert(sub);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["subscriptions"] }),
   });
 
   const updateSubscription = useMutation({
-    mutationFn: async ({ id, ...sub }: Partial<Subscription> & { id: string }) => {
-      const { error } = await supabase
-        .from("subscriptions" as any)
-        .update(sub as any)
-        .eq("id", id);
+    mutationFn: async ({ id, ...sub }: SubscriptionUpdate) => {
+      const { error } = await supabase.from("subscriptions").update(sub).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["subscriptions"] }),
@@ -55,7 +39,7 @@ export function useSubscriptions() {
 
   const deleteSubscription = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("subscriptions" as any).delete().eq("id", id);
+      const { error } = await supabase.from("subscriptions").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["subscriptions"] }),
@@ -63,10 +47,7 @@ export function useSubscriptions() {
 
   const togglePause = useMutation({
     mutationFn: async ({ id, paused }: { id: string; paused: boolean }) => {
-      const { error } = await supabase
-        .from("subscriptions" as any)
-        .update({ paused } as any)
-        .eq("id", id);
+      const { error } = await supabase.from("subscriptions").update({ paused }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["subscriptions"] }),
