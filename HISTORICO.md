@@ -11,6 +11,17 @@
 
 Este arquivo mantém um registro das alterações e problemas resolvidos neste projeto, para dar contexto em futuras sessões de chat.
 
+## [Concluído] 21/05/2026 - Refatoração P2: hook compartilhado, AuthScreen, skeleton loading
+
+**O que foi feito:**
+- **[C1]** Criado `src/hooks/useVirtualExpenses.ts` com lógica única de geração de parcelas virtuais e assinaturas — elimina duplicação entre `Index.tsx` e `FutureExpenses.tsx`
+- **[C4]** Extraído `src/components/AuthScreen.tsx` — tela de login/cadastro/recovery virou componente independente; `Index.tsx` caiu de ~1477 para ~950 linhas
+- **[U1]** Adicionado skeleton loading: ao verificar auth e ao carregar dados, exibe esqueleto de cards e tabela em vez de tela em branco
+- `FutureExpenses.tsx` agora usa `useVirtualExpenses` — zero lógica de geração duplicada
+
+**Arquivos criados:** `src/hooks/useVirtualExpenses.ts`, `src/components/AuthScreen.tsx`
+**Arquivos alterados:** `src/pages/Index.tsx`, `src/components/FutureExpenses.tsx`, `src/hooks/useExpenses.ts`
+
 ## [Concluído] 21/05/2026 - Correções de pipeline P0/P1
 
 **Problemas Corrigidos:**

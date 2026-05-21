@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Expense, useExpenses } from "@/hooks/useExpenses";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
+import { useVirtualExpenses, type VirtualInstallment, type SubscriptionVirtual } from "@/hooks/useVirtualExpenses";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -15,111 +16,22 @@ import { supabase } from "@/integrations/supabase/client";
 
 const formatCurrency = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-interface VirtualExpense extends Expense {
-  isVirtual?: boolean;
-  isSubscription?: boolean;
-  sourceExpenseId?: string;
-}
-
-const SUBSCRIPTION_PROJECTION_MONTHS = 12;
-
 export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]; cutoffs?: InvoiceCutoff[] }) {
   const { data: subscriptions = [] } = useSubscriptions();
   const { advanceInstallment, revertInstallment, addExpense, bulkAddExpenses } = useExpenses();
   const [faturaFilter, setFaturaFilter] = useState("all");
   const [despesaFilter, setDespesaFilter] = useState("all");
-  const [editingVirtual, setEditingVirtual] = useState<VirtualExpense | null>(null);
+  const [editingVirtual, setEditingVirtual] = useState<VirtualInstallment | null>(null);
   const materializedRef = useRef<Set<string>>(new Set());
 
-  const futureExpenses = useMemo<VirtualExpense[]>(() => {
-    const result: VirtualExpense[] = [];
-    const existingKeys = new Set(expenses.map((e) => `${e.id}_${e.parcela}`));
+  const { virtualInstallments, subscriptionVirtuals: subVirtuals } = useVirtualExpenses(expenses, subscriptions, cutoffs);
 
-    for (const e of expenses) {
-      const totalParcelas = e.total_parcela || 0;
-      if (totalParcelas <= 1) continue;
-      if (!e.fatura) continue;
-
-      const currentParcela = e.parcela || 0;
-      const remainingCount = totalParcelas - currentParcela;
-      if (remainingCount <= 0) continue;
-
-      // Generate virtual entries for remaining installments
-      const faturaDate = new Date(e.fatura.substring(0, 7) + "-01T12:00:00");
-
-      for (let i = 1; i <= remainingCount; i++) {
-        const futureParcela = currentParcela + i;
-        const key = `${e.id}_${futureParcela}`;
-        if (existingKeys.has(key)) continue;
-
-        const futuraFatura = addMonths(faturaDate, i);
-        const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
-
-        result.push({
-          ...e,
-          id: `${e.id}_p${futureParcela}`,
-          parcela: futureParcela,
-          fatura: futuraFaturaStr,
-          fatura_original: null,
-          isVirtual: true,
-          sourceExpenseId: e.id,
-        });
-      }
-    }
-
-    // Also include real future records that were advanced (have fatura_original)
-    for (const e of expenses) {
-      if (e.fatura_original) {
-        result.push({ ...e, isVirtual: false });
-      }
-    }
-
-    // Project active (non-paused) subscriptions for the next N months
-    const today = new Date();
-    const currentMonthKey = format(today, "yyyy-MM");
-    for (const sub of subscriptions) {
-      if (sub.paused) continue;
-      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
-
-      for (let i = 0; i < SUBSCRIPTION_PROJECTION_MONTHS; i++) {
-        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
-        const monthKey = format(dataDate, "yyyy-MM");
-
-        // Skip current month if already auto-generated
-        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
-
-        // Skip if a real expense for this subscription already exists in this month
-        const exists = expenses.some(
-          (e) =>
-            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() && e.data?.substring(0, 7) === monthKey,
-        );
-        if (exists) continue;
-
-        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
-        const faturaStr = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
-
-        result.push({
-          id: `sub_${sub.id}_${monthKey}`,
-          banco: sub.banco || "",
-          cartao: sub.cartao || "",
-          valor: Number(sub.valor),
-          data: dataStr,
-          parcela: 1,
-          total_parcela: 1,
-          despesa: sub.nome,
-          justificativa: sub.justificativa,
-          classificacao: sub.classificacao || "Assinatura",
-          fatura: faturaStr,
-          fatura_original: null,
-          created_at: "",
-          isVirtual: true,
-          isSubscription: true,
-        });
-      }
-    }
-
-    return result.sort((a, b) => (a.fatura || "").localeCompare(b.fatura || ""));
-  }, [expenses, subscriptions, cutoffs]);
+  const futureExpenses = useMemo(() => {
+    const advanced = expenses.filter((e) => e.fatura_original);
+    return [...virtualInstallments, ...subVirtuals, ...advanced].sort(
+      (a, b) => (a.fatura || "").localeCompare(b.fatura || ""),
+    );
+  }, [virtualInstallments, subVirtuals, expenses]);
 
   const uniqueFaturas = useMemo(
     () => [...new Set(futureExpenses.map((e) => e.fatura?.substring(0, 7)))].filter(Boolean).sort() as string[],
@@ -138,17 +50,10 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
     );
   }, [futureExpenses, faturaFilter, despesaFilter]);
 
-  // Auto-materializar parcelas virtuais cuja fatura já chegou (<= fatura foco).
-  // Aplica-se apenas a parcelas (não assinaturas).
   useEffect(() => {
     const faturaFoco = getFaturaAtual(cutoffs).slice(0, 7);
-    const toMaterialize = futureExpenses.filter(
-      (e) =>
-        e.isVirtual &&
-        !e.isSubscription &&
-        e.sourceExpenseId &&
-        e.fatura &&
-        e.fatura.slice(0, 7) <= faturaFoco,
+    const toMaterialize = virtualInstallments.filter(
+      (e) => e.fatura && e.fatura.slice(0, 7) <= faturaFoco,
     );
     if (toMaterialize.length === 0) return;
 
@@ -182,9 +87,9 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
         .filter(Boolean) as any[];
       if (payloads.length > 0) bulkAddExpenses.mutate(payloads);
     })();
-  }, [futureExpenses, cutoffs, expenses, bulkAddExpenses]);
+  }, [virtualInstallments, cutoffs, expenses, bulkAddExpenses]);
 
-  const handleAdvanceVirtual = (e: VirtualExpense, targetFatura: string) => {
+  const handleAdvanceVirtual = (e: VirtualInstallment, targetFatura: string) => {
     const source = expenses.find((exp) => exp.id === e.sourceExpenseId);
     if (!source) return;
     addExpense.mutate({
@@ -274,21 +179,26 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((e) => (
+              filtered.map((e) => {
+                const item = e as any;
+                const isVirtual = !!item.isVirtual;
+                const isSubscription = !!item.isSubscription;
+                const hasOriginal = !!e.fatura_original;
+                return (
                 <TableRow
                   key={e.id}
                   className={cn(
                     "hover:bg-blue-50/50 transition-colors",
-                    !!e.fatura_original && "bg-amber-50/50",
-                    e.isVirtual && !e.isSubscription && "bg-slate-50/30",
-                    e.isSubscription && "bg-indigo-50/30",
+                    hasOriginal && "bg-amber-50/50",
+                    isVirtual && !isSubscription && "bg-slate-50/30",
+                    isSubscription && "bg-indigo-50/30",
                   )}
                 >
                   <TableCell className="font-bold text-sm">
                     <div className="flex items-center gap-1.5">
-                      {e.isSubscription ? (
+                      {isSubscription ? (
                         <Repeat size={12} className="text-indigo-500" />
-                      ) : e.isVirtual ? (
+                      ) : isVirtual ? (
                         <Sparkles size={12} className="text-purple-400" />
                       ) : null}
                       {e.despesa}
@@ -296,7 +206,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                   </TableCell>
                   <TableCell className="text-right font-black text-blue-600">{formatCurrency(e.valor)}</TableCell>
                   <TableCell className="text-center text-xs font-bold">
-                    {e.isSubscription ? (
+                    {isSubscription ? (
                       <Badge
                         variant="outline"
                         className="bg-indigo-50 text-indigo-700 border-indigo-200 font-black text-[9px]"
@@ -313,9 +223,9 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                     {format(new Date(e.fatura!.substring(0, 7) + "-01T12:00:00"), "MMM/yy", { locale: ptBR })}
                   </TableCell>
                   <TableCell className="text-center">
-                    {e.isSubscription ? (
+                    {isSubscription ? (
                       <span className="text-[10px] font-bold text-indigo-400 italic">Recorrente</span>
-                    ) : e.fatura_original ? (
+                    ) : hasOriginal ? (
                       <Button
                         variant="ghost"
                         size="sm"
@@ -324,13 +234,13 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                       >
                         <Undo2 size={14} className="mr-1" /> Reverter
                       </Button>
-                    ) : e.isVirtual ? (
+                    ) : isVirtual && item.sourceExpenseId ? (
                       <div className="flex items-center justify-center gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="text-purple-600 font-bold text-xs h-8"
-                          onClick={() => handleAdvanceVirtual(e, getFaturaAtual(cutoffs))}
+                          onClick={() => handleAdvanceVirtual(item as VirtualInstallment, getFaturaAtual(cutoffs))}
                         >
                           <FastForward size={14} className="mr-1" /> Adiantar
                         </Button>
@@ -338,7 +248,7 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                           variant="ghost"
                           size="sm"
                           className="text-slate-600 font-bold text-xs h-8 px-2"
-                          onClick={() => setEditingVirtual(e)}
+                          onClick={() => setEditingVirtual(item as VirtualInstallment)}
                           title="Editar parcela futura"
                         >
                           <Pencil size={14} />
@@ -356,7 +266,8 @@ export function FutureExpenses({ expenses, cutoffs = [] }: { expenses: Expense[]
                     )}
                   </TableCell>
                 </TableRow>
-              ))
+                );
+              })
             )}
           </TableBody>
         </Table>

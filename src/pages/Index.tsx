@@ -2,7 +2,9 @@ import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useExpenses, type Expense } from "@/hooks/useExpenses";
 import { useSubscriptions } from "@/hooks/useSubscriptions";
-import { resolveFatura } from "@/lib/faturaResolver";
+import { useVirtualExpenses } from "@/hooks/useVirtualExpenses";
+import { AuthScreen } from "@/components/AuthScreen";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { FutureExpenses } from "@/components/FutureExpenses";
 import { Subscriptions } from "@/components/Subscriptions";
@@ -30,12 +32,8 @@ import {
   Pencil,
   Trash2,
   Upload,
-  
   LogOut,
-  Chrome,
-  Wallet,
   Target,
-  FilterX,
   Filter,
   ArrowUpDown,
   ArrowUp,
@@ -97,11 +95,6 @@ export default function Index() {
 
   const [budget, setBudget] = useState<number | null>(null);
   const [tempBudget, setTempBudget] = useState<number>(0);
-
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [authMode, setAuthMode] = useState<"login" | "signup" | "recovery">("login");
 
   const {
     data: allExpenses = [],
@@ -181,49 +174,6 @@ export default function Index() {
       toast.success("Teto atualizado!");
     } else {
       toast.error("Erro ao salvar teto.");
-    }
-  };
-
-  const loginWithGoogle = () => {
-    supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-  };
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthLoading(true);
-    try {
-      if (authMode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
-        if (error) throw error;
-      } else if (authMode === "signup") {
-        const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword });
-        if (error) throw error;
-        toast.success("Verifique seu e-mail!");
-      }
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setIsAuthLoading(false);
-    }
-  };
-
-  const handleRecovery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAuthLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(authEmail, {
-        redirectTo: `${window.location.origin}?mode=reset`,
-      });
-      if (error) throw error;
-      toast.success("Link de recuperação enviado! Verifique seu e-mail.");
-      setAuthMode("login");
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setIsAuthLoading(false);
     }
   };
 
@@ -310,88 +260,12 @@ export default function Index() {
     });
   }, [allExpenses, cutoffs]);
 
-  // Generate virtual future installments from parceladas
-  const virtualExpenses = useMemo(() => {
-    const result: (Expense & { isVirtual?: boolean })[] = [];
-    const existingKeys = new Set(normalizedExpenses.map((e) => `${e.id}_${e.parcela}`));
-
-    for (const e of normalizedExpenses) {
-      const totalParcelas = e.total_parcela || 0;
-      if (totalParcelas <= 1) continue;
-      if (!e.fatura) continue;
-
-      const currentParcela = e.parcela || 0;
-      const remainingCount = totalParcelas - currentParcela;
-      if (remainingCount <= 0) continue;
-
-      const faturaDate = new Date(e.fatura.substring(0, 7) + "-01T12:00:00");
-
-      for (let i = 1; i <= remainingCount; i++) {
-        const futureParcela = currentParcela + i;
-        const key = `${e.id}_${futureParcela}`;
-        if (existingKeys.has(key)) continue;
-        existingKeys.add(key);
-
-        const futuraFatura = addMonths(faturaDate, i);
-        const futuraFaturaStr = format(futuraFatura, "yyyy-MM-dd");
-
-        result.push({
-          ...e,
-          id: `${e.id}_v${futureParcela}`,
-          parcela: futureParcela,
-          fatura: futuraFaturaStr,
-          fatura_original: null,
-          isVirtual: true,
-        } as any);
-      }
-    }
-    return result;
-  }, [normalizedExpenses]);
-
-  // Virtual subscription expenses for the next 12 months,
-  // skipping months where a real expense for that subscription already exists.
   const { data: subscriptions = [] } = useSubscriptions();
-  const subscriptionVirtuals = useMemo(() => {
-    const result: (Expense & { isVirtual?: boolean; isSubscription?: boolean })[] = [];
-    const today = new Date();
-    const currentMonthKey = format(today, "yyyy-MM");
-    for (const sub of subscriptions) {
-      if (sub.paused) continue;
-      const dia = Math.min(Math.max(sub.dia_cobranca || 1, 1), 28);
-      for (let i = 0; i < 12; i++) {
-        const dataDate = addMonths(new Date(today.getFullYear(), today.getMonth(), 1), i);
-        const monthKey = format(dataDate, "yyyy-MM");
-        if (monthKey === currentMonthKey && sub.last_generated_month === currentMonthKey) continue;
-        const exists = normalizedExpenses.some(
-          (e) =>
-            e.despesa?.toLowerCase().trim() === sub.nome.toLowerCase().trim() &&
-            e.data?.substring(0, 7) === monthKey,
-        );
-        if (exists) continue;
-        const dataStr = `${monthKey}-${String(dia).padStart(2, "0")}`;
-        const fatura = resolveFatura(sub.banco || "", sub.cartao || "", dataStr, cutoffs);
-        if (!fatura) continue;
-        result.push({
-          id: `sub_${sub.id}_${monthKey}`,
-          banco: sub.banco || "",
-          cartao: sub.cartao || "",
-          valor: Number(sub.valor),
-          data: dataStr,
-          parcela: 1,
-          total_parcela: 1,
-          despesa: sub.nome,
-          justificativa: sub.justificativa,
-          classificacao: sub.classificacao || "Assinaturas",
-          fatura,
-          fatura_original: null,
-          created_at: "",
-          isVirtual: true,
-          isSubscription: true,
-        } as any);
-      }
-    }
-    return result;
-  }, [subscriptions, normalizedExpenses, cutoffs]);
+  const { virtualInstallments: virtualExpenses, subscriptionVirtuals } = useVirtualExpenses(
+    normalizedExpenses,
+    subscriptions,
+    cutoffs,
+  );
 
   // Combine real faturas + virtual future faturas for dropdown
   const allFaturaOptions = useMemo(() => {
@@ -642,104 +516,41 @@ export default function Index() {
 
   if (isCheckingAuth)
     return (
-      <div className="h-screen flex items-center justify-center font-bold text-slate-400 italic">
-        Validando acesso...
-      </div>
-    );
-
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-          <div className="bg-gradient-to-br from-blue-600 to-purple-700 p-10 text-center text-white">
-            <Wallet size={48} className="mx-auto mb-4" />
-            <h1 className="text-3xl font-black uppercase tracking-tighter">Financeiro</h1>
+      <div className="min-h-screen bg-slate-50 pb-10">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 h-24 mb-6" />
+        <div className="mx-auto max-w-7xl px-4 space-y-4">
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-3xl" />
+            ))}
           </div>
-          <div className="p-8 space-y-6">
-            <Button
-              onClick={loginWithGoogle}
-              variant="outline"
-              className="w-full h-12 font-bold flex gap-3 text-slate-700 hover:bg-slate-50"
-            >
-              <Chrome size={20} className="text-blue-500" /> Entrar com Google
-            </Button>
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-[10px] uppercase font-black text-slate-400">
-                <span className="bg-white px-2">Ou E-mail</span>
-              </div>
-            </div>
-            {authMode === "recovery" ? (
-              <form onSubmit={handleRecovery} className="space-y-4">
-                <Input
-                  type="email"
-                  placeholder="E-mail cadastrado"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  required
-                  className="h-12 border-slate-200"
-                />
-                <Button
-                  type="submit"
-                  disabled={isAuthLoading}
-                  className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
-                >
-                  Enviar link de recuperação
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("login")}
-                  className="w-full text-xs text-slate-500 hover:text-slate-700 font-bold"
-                >
-                  Voltar ao login
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={handleAuth} className="space-y-4">
-                <Input
-                  type="email"
-                  placeholder="E-mail"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  required
-                  className="h-12 border-slate-200"
-                />
-                <Input
-                  type="password"
-                  placeholder="Senha"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  required
-                  className="h-12 border-slate-200"
-                />
-                <Button
-                  type="submit"
-                  disabled={isAuthLoading}
-                  className="w-full h-12 font-black bg-blue-600 hover:bg-blue-700 uppercase tracking-widest transition-colors"
-                >
-                  {authMode === "login" ? "Entrar" : "Cadastrar"}
-                </Button>
-                <div className="flex justify-between text-xs font-bold text-slate-500">
-                  <button type="button" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")} className="hover:text-slate-700">
-                    {authMode === "login" ? "Criar conta" : "Já tenho conta"}
-                  </button>
-                  {authMode === "login" && (
-                    <button type="button" onClick={() => setAuthMode("recovery")} className="hover:text-slate-700">
-                      Esqueci a senha
-                    </button>
-                  )}
-                </div>
-              </form>
-            )}
-          </div>
+          <Skeleton className="h-10 w-64 rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-3xl" />
         </div>
       </div>
     );
-  }
+
+  if (!session) return <AuthScreen />;
 
   const userName = session.user.user_metadata?.full_name || session.user.email;
+
+  if (isLoading)
+    return (
+      <div className="min-h-screen bg-slate-50 pb-10">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 h-24 mb-6" />
+        <div className="mx-auto max-w-7xl px-4 space-y-4">
+          <Skeleton className="h-12 w-full rounded-2xl" />
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-3xl" />
+            ))}
+          </div>
+          <Skeleton className="h-10 w-64 rounded-2xl" />
+          <Skeleton className="h-96 w-full rounded-3xl" />
+        </div>
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-slate-50 pb-10">
